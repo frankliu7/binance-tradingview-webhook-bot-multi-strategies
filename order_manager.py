@@ -10,6 +10,7 @@ from binance_future import (
 import logging
 from config import get_strategy_config
 from util import is_within_slippage, calc_quantity
+from performance_tracker import record_trade
 
 logger = logging.getLogger("bot")
 
@@ -51,6 +52,17 @@ def handle_order(data):
 
         if stop_loss:
             place_tp_sl_orders(symbol, side, stop_loss_price=stop_loss)
+
+        # ⬇ 紀錄績效
+        record_trade(
+            strategy, symbol, action, side,
+            entry_price=price,
+            market_price=market_price,
+            qty=total_qty,
+            tp1=tp1, tp2=tp2,
+            sl=stop_loss,
+            slippage_pct=abs(price - market_price) / price * 100
+        )
 
     elif action == "EXIT":
         logger.info(f"🚪 [{strategy}] 平倉 {symbol}")
