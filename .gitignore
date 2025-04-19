@@ -1,31 +1,26 @@
-# Python build
-__pycache__/
-*.py[cod]
-*.egg-info/
-
-# Virtual environment
-env/
+# Python virtual environments
 venv/
-.venv/
 
-# IDE / Editor configs
-.vscode/
-.idea/
-
-# Logs & output
-log/
-*.log
-*.csv
-*.db
-
-# Env secrets
+# Environment variables
 .env
 
-# Jupyter (如未使用可刪)
+# Logs and output
+log/
+*.log
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
-# Test / cache
-.pytest_cache/
-.mypy_cache/
-.cache/
-.coverage
+# macOS system files
+.DS_Store
+
+# VS Code settings
+.vscode/
+
+# Backup or swap files
+*.bak
+*.swp
