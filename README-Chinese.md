@@ -42,6 +42,7 @@ bash restart.sh
   "tp1": 69000,
   "tp2": 70000,
   "sl": 67000,
+  "position_pct": 0.2,
   "timestamp": 1713696633
 }
 ```
@@ -54,6 +55,7 @@ bash restart.sh
 | `exchange` | 目前支援 `binance`（預計支援 okx） |
 | `action` | `long` / `short` / `exit` |
 | `tp1` / `tp2` / `sl` | 多段止盈 / 止損（選填） |
+| `position_pct` | 該策略佔總倉位資金比例（若無將使用 config 預設） |
 | `timestamp` | 訊號 UTC 時間戳，用於滑價延遲比對（選填） |
 
 💡 若策略需實作「追蹤止盈」，建議直接在 TradingView 策略腳本中實作後由 webhook 發送 `action: exit` 通知 bot 平倉。
@@ -80,11 +82,14 @@ STRATEGIES = {
         "enabled": False
     }
 }
+
+MAX_TOTAL_POSITION_PCT = 0.7  # 所有策略最大可用資金總和佔帳戶總額比例
 ```
 
 - `capital_pct`：表示佔整體帳戶資金的百分比（例如 0.1 即為 10%）
-- 可設定各策略獨立參數，未設定的欄位使用 `DEFAULT_STRATEGY_CONFIG`
-- 新策略如未出現在 `STRATEGIES` 中，系統會**自動註冊並套用預設設定**
+- `MAX_TOTAL_POSITION_PCT`：總體風控限制（如 0.7 = 所有倉位總和不能超過 70%）
+- webhook 中若傳入 `position_pct`，將覆蓋 config 中 `capital_pct` 值
+- 當即將執行策略導致總倉超標時，系統將記錄錯誤並拒絕下單
 
 ---
 
@@ -111,7 +116,7 @@ bash start_dashboard.sh
 📦 binance-tradingview-webhook-bot-multi-strategies
 ├── main.py                 # Webhook 接收入口
 ├── order_manager.py        # 處理進出場策略邏輯
-├── binance_future.py       # Binance 下單模組（可替換 okx）
+├── binance_future.py       # Binance 下單模組（支援限價 / timeInForce）
 ├── config.py               # 策略設定檔
 ├── performance_tracker.py  # 交易紀錄與績效分析
 ├── position_tracker.py     # 倉位追蹤（多策略）
@@ -131,7 +136,7 @@ bash start_dashboard.sh
 ## 🧪 測試建議流程
 
 1. 在 TradingView 發送 webhook 測試訊號
-2. 觀察終端機與 log/bot.log 有無錯誤
+2. 觀察終端機與 log/bot.log 有無錯誤（例如超過最大總倉比例）
 3. 用 `/monitor` API 確認策略是否註冊與倉位狀況
 4. 查看 `log/performance.csv` 是否正確記錄績效
 5. 開啟 Dashboard 確認策略盈虧統計
@@ -144,7 +149,7 @@ bash start_dashboard.sh
 - [ ] ⌛ 限價掛單 / 止盈移動追蹤（追蹤止盈）
 - [ ] 📬 每日 Telegram / LINE Notify 績效回報
 - [ ] 🧠 策略調度器（RR 比低於閾值自動停用）
-- [ ] 💰 Portfolio 均權配置與風控比重
+- [ ] 💰 Portfolio 均權配置與風控比重（MAX_TOTAL_POSITION_PCT 支援中）
 
 ---
 
