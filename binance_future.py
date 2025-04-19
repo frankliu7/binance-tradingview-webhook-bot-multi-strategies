@@ -78,3 +78,10 @@ def close_position(symbol):
     close_side = "SELL" if pos['side'] == "LONG" else "BUY"
     quantity = abs(pos['amt'])
     return place_market_order(symbol, close_side, quantity, reduce_only=True)
+
+def get_account_balance(asset='USDT'):
+    balances = client.futures_account_balance()
+    for b in balances:
+        if b['asset'] == asset:
+            return float(b['balance'])
+    return 0.0
