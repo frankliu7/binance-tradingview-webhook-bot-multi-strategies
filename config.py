@@ -4,29 +4,26 @@ from dotenv import load_dotenv
 
 load_dotenv()  # 讀取 .env 檔案中的變數
 
-strategy_config = {
-    "BTCUSDT_1h_MACD": {
-        "enabled": True,  # 是否啟用策略
-        "symbol": "BTCUSDT",
-        "exchange": "binance_future",
-        "capital_pct": 0.1,             # 使用帳戶資金的比例，例如 0.1 = 10%
-        "max_position_usdt": 500,       # 單策略最大持倉 USD 上限
-        "leverage": 10,                 # 預設槓桿倍率（風控用）
-        "trading_volume": 0.01,         # fallback 單次下單量
-        "max_slippage_pct": 0.5         # 接受滑價上限（%）
-    },
+strategy_config = {}
 
-    "ETHUSDT_15m_RSI": {
-        "enabled": True,
-        "symbol": "ETHUSDT",
-        "exchange": "binance_future",
-        "capital_pct": 0.05,
-        "max_position_usdt": 300,
-        "leverage": 5,
-        "trading_volume": 0.005,
-        "max_slippage_pct": 0.3
-    }
+# 動態註冊策略預設參數
+DEFAULT_STRATEGY_SETTINGS = {
+    "enabled": True,
+    "exchange": "binance_future",
+    "capital_pct": 0.05,
+    "max_position_usdt": 200,
+    "leverage": 5,
+    "trading_volume": 0.01,
+    "max_slippage_pct": 0.3
 }
+
+def register_strategy(name, symbol):
+    if name not in strategy_config:
+        strategy_config[name] = DEFAULT_STRATEGY_SETTINGS.copy()
+        strategy_config[name]["symbol"] = symbol
+
+# ✅ 示範自動註冊策略（可刪掉）
+# register_strategy("BTCUSDT_5m_ATR", "BTCUSDT")
 
 # 從環境變數中讀取私密設定
 WEBHOOK_PASSPHRASE = os.getenv("WEBHOOK_PASSPHRASE")
