@@ -2,19 +2,19 @@
 
 strategy_config = {
     "BTCUSDT_1h_MACD": {
-        "enabled": True,  # 策略是否啟用
+        "enabled": True,  # 是否啟用策略
         "symbol": "BTCUSDT",
         "exchange": "binance_future",
-        "capital_pct": 0.1,         # 使用帳戶資金的比例，例如 0.1 表示使用 10%
-        "max_position_usdt": 500,   # 最大持倉資金上限 (USD)
-        "leverage": 10,             # 預期使用槓桿倍數（如需實際下單控制，需搭配 API 設定）
-        "trading_volume": 0.01,     # 單次下單數量，fallback 用（優先使用資金比轉換）
-        "max_slippage_pct": 0.5     # 容許的最大滑價百分比
+        "capital_pct": 0.1,             # 使用帳戶資金的比例，例如 0.1 = 10%
+        "max_position_usdt": 500,       # 單策略最大持倉 USD 上限
+        "leverage": 10,                 # 預設槓桿倍率（風控用）
+        "trading_volume": 0.01,         # fallback 單次下單量
+        "max_slippage_pct": 0.5         # 接受滑價上限（%）
     },
 
-    "BTCUSDT_1h_ATR": {
-        "enabled": False,
-        "symbol": "BTCUSDT",
+    "ETHUSDT_15m_RSI": {
+        "enabled": True,
+        "symbol": "ETHUSDT",
         "exchange": "binance_future",
         "capital_pct": 0.05,
         "max_position_usdt": 300,
@@ -24,7 +24,9 @@ strategy_config = {
     }
 }
 
-# 全局參數
+# 安全驗證用的 passphrase
 WEBHOOK_PASSPHRASE = "mysecurepass"
+
+# Binance API 金鑰
 API_KEY = "your_api_key"
 API_SECRET = "your_api_secret"
