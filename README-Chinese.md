@@ -1,5 +1,42 @@
 # Binance TradingView Webhook Bot
 
+## 🚀 VPS 部署快速指南（無需 sudo 權限）
+
+1️⃣ 登入 VPS（使用 Cloudways 提供的 SSH）
+```bash
+ssh master_帳號@<你的VPS_IP>
+```
+
+2️⃣ 複製專案
+```bash
+git clone https://github.com/<你的帳號>/binance-tradingview-webhook-bot-multi-strategies.git
+cd binance-tradingview-webhook-bot-multi-strategies
+```
+
+3️⃣ 設定環境變數
+```bash
+cp .env.template .env
+nano .env  # 輸入 Binance API 金鑰與 webhook 密碼
+```
+
+4️⃣ 執行安裝（會自動下載 Python 並建立 venv）
+```bash
+bash install_no_sudo.sh
+```
+
+5️⃣ 背景啟動 bot
+```bash
+bash start_no_sudo.sh
+```
+
+6️⃣ 檢查是否運行成功
+```bash
+bash status.sh
+# 或查看即時 log
+
+tail -f log/bot.log
+```
+
 本專案是一個模組化的幣安自動交易機器人，能接收 TradingView 訊號、依據策略自動下單、風控控管、多策略資金分配、滑價處理與績效紀錄。
 
 ---
