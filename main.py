@@ -1,42 +1,41 @@
-# main.py
+import os
 import json
-from flask import Flask, request
-from config import WEBHOOK_PASSPHRASE, strategy_config, register_strategy
-from order_manager import execute_order
-from logger import log_error
+import logging
+from flask import Flask, request, jsonify
+from dotenv import load_dotenv
+from order_manager import handle_order
+from logger import setup_logger
+
+load_dotenv()
 
 app = Flask(__name__)
+logger = setup_logger()
 
-@app.route('/', methods=['GET'])
+WEBHOOK_PASSPHRASE = os.getenv("WEBHOOK_PASSPHRASE")
+
+@app.route("/", methods=["GET"])
 def home():
-    return "Webhook Bot Online."
+    return "🚀 Bot is running."
 
-@app.route('/webhook', methods=['POST'])
+@app.route("/webhook", methods=["POST"])
 def webhook():
     try:
-        data = json.loads(request.data)
+        data = request.get_json()
+
         if data.get("passphrase") != WEBHOOK_PASSPHRASE:
-            return {"code": 403, "message": "Invalid passphrase"}, 403
+            logger.warning("⛔ 拒絕：Passphrase 錯誤")
+            return jsonify({"code": 403, "msg": "Invalid passphrase"}), 403
 
-        strategy_name = data.get("strategy_name")
-        symbol = data.get("symbol")
-        action = data.get("action")
-        price = float(data.get("price"))
+        logger.info(f"📩 收到 webhook: {json.dumps(data)}")
 
-        # ✅ 自動註冊策略（若未事先定義）
-        register_strategy(strategy_name, symbol)
-        cfg = strategy_config[strategy_name]
+        # 傳入 order_manager 處理下單邏輯
+        handle_order(data)
 
-        # 如果策略未啟用，直接跳過
-        if not cfg.get("enabled", True):
-            return {"code": 200, "message": f"{strategy_name} is disabled"}, 200
-
-        result = execute_order(cfg, action, price)
-        return {"code": 200, "message": "Order executed", "result": result}, 200
+        return jsonify({"code": 200, "msg": "Webhook received"})
 
     except Exception as e:
-        log_error(f"[webhook error] {str(e)}")
-        return {"code": 500, "message": "Server error"}, 500
+        logger.exception("Webhook 處理錯誤")
+        return jsonify({"code": 500, "msg": "Internal server error"}), 500
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8888)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8888)
