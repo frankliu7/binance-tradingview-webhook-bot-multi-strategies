@@ -1,2 +1,5 @@
-requests
-flask
+flask                 # 用於 webhook 與 dashboard API
+requests              # 若需額外 API 請求或 webhook 擴充
+decimal               # 精準處理下單價格與數量
+python-binance        # 幣安下單與查詢功能核心
+pandas                # 可用於未來績效統計分析（非必須，但實用）
