@@ -103,6 +103,8 @@ bash start_dashboard.sh
 
 ### 包含模組：
 
+- 🧾 資金分配視覺化（圓餅圖 / 長條圖）
+
 - 📋 最近交易明細（TP / SL / PnL% / 持倉秒數）
 - 📈 各策略績效：Sharpe / Sortino / 勝率 / RR 比 / 連勝數
 - 📉 總體 PnL 趨勢與最大回落分析
