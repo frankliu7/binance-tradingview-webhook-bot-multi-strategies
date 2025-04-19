@@ -1,82 +1,35 @@
-# order_manager.py
-from api.binance_future import BinanceFutureHttpClient, OrderSide, OrderType
-from config import API_KEY, API_SECRET
-from util import get_account_balance, get_position_amount
-from decimal import Decimal
-from logger import log_trade
-from performance_tracker import record_trade, record_exit
+import csv
+from datetime import datetime
+import os
 
-client = BinanceFutureHttpClient(api_key=API_KEY, secret=API_SECRET)
+PERFORMANCE_LOG = "log/performance.csv"
 
-def execute_order(cfg, action, signal_price):
-    symbol = cfg["symbol"]
-    capital_pct = cfg.get("capital_pct", 1.0)
-    leverage = cfg.get("leverage", 1)
-    max_usdt = cfg.get("max_position_usdt", 999999)
-    fallback_volume = cfg.get("trading_volume", 0.01)
+# 確保 log 資料夾存在
+os.makedirs("log", exist_ok=True)
 
-    # 查詢帳戶總資金（USDT）與目前倉位
-    balance = get_account_balance(client, asset="USDT")
-    current_position = get_position_amount(client, symbol)
+# 初始表頭（僅首次寫入）
+if not os.path.exists(PERFORMANCE_LOG):
+    with open(PERFORMANCE_LOG, mode="w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "timestamp", "strategy", "symbol", "action", "side", "entry_price", "market_price",
+            "quantity", "tp1", "tp2", "stop_loss", "slippage_pct"
+        ])
 
-    # 計算理論下單金額（使用資金比例與槓桿）
-    max_trade_usdt = balance * capital_pct * leverage
-    remaining_allowable = max_usdt - (abs(current_position) * signal_price)
-    final_trade_usdt = min(max_trade_usdt, remaining_allowable)
-
-    # 若可下單金額太小，則使用 fallback trading_volume
-    if final_trade_usdt < 5:
-        quantity = fallback_volume
-    else:
-        quantity = round(Decimal(final_trade_usdt / signal_price), 4)
-
-    # 根據 action 決定下單方向或平倉
-    if action.upper() == "LONG":
-        order_side = OrderSide.BUY
-    elif action.upper() == "SHORT":
-        order_side = OrderSide.SELL
-    elif action.upper() == "EXIT":
-        if current_position > 0:
-            order_side = OrderSide.SELL
-            quantity = abs(current_position)
-        elif current_position < 0:
-            order_side = OrderSide.BUY
-            quantity = abs(current_position)
-        else:
-            return {"status": "no position to exit"}
-    else:
-        raise ValueError("不支援的動作")
-
-    # 建立 order_id
-    order_id = client.get_client_order_id()
-
-    # 執行市價單下單
-    status, order = client.place_order(
-        symbol=symbol,
-        order_side=order_side,
-        order_type=OrderType.MARKET,
-        quantity=quantity,
-        price=Decimal(str(signal_price)),
-        client_order_id=order_id
-    )
-
-    if status == 200:
-        executed_price = float(order.get("avgFillPrice") or order.get("price"))
-        result = {
-            "qty": float(order.get("executedQty")),
-            "executed_price": executed_price,
-            "order_id": order_id,
-            "status": "filled"
-        }
-
-        log_trade(cfg["symbol"], action, result)
-
-        # 績效記錄
-        if action.upper() in ["LONG", "SHORT"]:
-            record_trade(cfg["symbol"], action, result["qty"], executed_price)
-        elif action.upper() == "EXIT":
-            record_exit(cfg["symbol"], result["qty"], executed_price)
-
-        return result
-    else:
-        raise Exception(f"下單失敗: {order}")
+def record_trade(strategy, symbol, action, side, entry_price, market_price, qty, tp1, tp2, sl, slippage_pct):
+    with open(PERFORMANCE_LOG, mode="a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            datetime.utcnow().isoformat(),
+            strategy,
+            symbol,
+            action,
+            side,
+            entry_price,
+            market_price,
+            qty,
+            tp1,
+            tp2,
+            sl,
+            round(slippage_pct, 4)
+        ])
