@@ -96,6 +96,47 @@ st.dataframe(sum_df[['avg_pnl_pct', 'total_pnl_pct', 'annualized_return_pct', 'w
 
 # ➕ 總體績效分析
 
+# ➕ 報酬 vs 風險分析（Sharpe, Sortino, RR）
+
+st.subheader("📈 Risk-Adjusted Metrics")
+st.subheader("📈 Risk-Adjusted Metrics")
+try:
+    df = perf_df[perf_df['is_entry'] == False]
+    grouped = df.groupby('strategy_name')
+
+    risk_df = pd.DataFrame()
+    risk_df['mean'] = grouped['pnl_pct'].mean()
+    risk_df['std'] = grouped['pnl_pct'].std()
+    risk_df['sharpe'] = (risk_df['mean'] / risk_df['std']) * (252**0.5)
+
+    downside_std = grouped['pnl_pct'].apply(lambda x: x[x < 0].std())
+    risk_df['sortino'] = (risk_df['mean'] / downside_std) * (252**0.5)
+
+    merged_rr = pd.merge(entries, exits, on='order_id', suffixes=('_entry', '_exit'))
+    merged_rr['rr'] = merged_rr['pnl_pct_exit'].abs() / merged_rr['slippage_pct_exit'].abs().replace(0, 1e-6)
+    rr_df = merged_rr.groupby('strategy_name_exit')['rr'].mean().reset_index()
+    rr_df.columns = ['strategy_name', 'avg_rr']
+
+    risk_df = risk_df.merge(rr_df, on='strategy_name', how='left')
+    risk_df = risk_df.reset_index()
+
+    st.dataframe(risk_df[['strategy_name', 'sharpe', 'sortino', 'avg_rr']].round(2))
+
+    # 總體 Sharpe、Sortino、RR
+    total_sharpe = (df['pnl_pct'].mean() / df['pnl_pct'].std()) * (252**0.5)
+    total_sortino = (df['pnl_pct'].mean() / df[df['pnl_pct'] < 0]['pnl_pct'].std()) * (252**0.5)
+    total_avg_rr = merged_rr['rr'].mean()
+
+    st.markdown("---")
+    st.subheader("📦 Overall Risk Metrics")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Sharpe Ratio", f"{total_sharpe:.2f}")
+    col2.metric("Sortino Ratio", f"{total_sortino:.2f}")
+    col3.metric("Avg. RR", f"{total_avg_rr:.2f}")
+
+except Exception as e:
+    st.warning(f"無法計算 Sharpe / Sortino / RR 指標: {e}")
+
 # ➕ monitor.py API 狀態
 try:
     import requests
