@@ -3,8 +3,12 @@
 echo "🔄 更新 Trading Bot 原始碼..."
 git pull
 
-echo "🛠 重新啟動 Dashboard..."
+echo "🛑 停止交易機器人與 Dashboard..."
+./stop.sh
 ./stop_dashboard.sh
+
+echo "✅ 重新啟動交易機器人與 Dashboard..."
+./start.sh
 ./start_dashboard.sh
 
-echo "✅ 更新完成，Dashboard 已重啟！"
+echo "🚀 更新與重啟完成！"
