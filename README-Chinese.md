@@ -54,7 +54,7 @@ bash restart.sh
 | `strategy_name` | 策略名稱，對應 config 設定或自動註冊 |
 | `exchange` | 目前支援 `binance`（預計支援 okx） |
 | `action` | `long` / `short` / `exit` |
-| `tp1` / `tp2` / `sl` | 多段止盈 / 止損（選填） |
+| `tp1` / `tp2` / `sl` | 多段止盈 / 止損（選填）<br>➡️ **均為市價單出場，簡化操作流程** |
 | `position_pct` | 該策略佔總倉位資金比例（若無將使用 config 預設） |
 | `timestamp` | 訊號 UTC 時間戳，用於滑價延遲比對（選填） |
 
