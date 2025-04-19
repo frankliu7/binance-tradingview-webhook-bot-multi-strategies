@@ -15,7 +15,7 @@
 
 ---
 
-## 📦 安裝說明
+## 📦 安裝說明（無 sudo VPS 適用）
 
 ### 1️⃣ 複製專案
 ```bash
@@ -24,19 +24,19 @@ cd binance-tradingview-webhook-bot-multi-strategies
 ```
 
 ### 2️⃣ 設定環境變數
-建立 `.env` 檔案：
 ```bash
 cp .env.template .env
+nano .env  # 編輯填入金鑰與密碼
 ```
-編輯 `.env` 並填入你的 Binance API 金鑰與密碼。
 
-### 3️⃣ 啟動 bot（自動安裝 + 背景執行）
+### 3️⃣ 執行安裝（自編譯 Python）
 ```bash
-bash start.sh
+bash install_no_sudo.sh
 ```
-查看 log：
+
+### 4️⃣ 啟動 bot（背景執行）
 ```bash
-tail -f log/bot.log
+bash start_no_sudo.sh
 ```
 
 ---
@@ -56,8 +56,6 @@ tail -f log/bot.log
 }
 ```
 
-> 策略名稱與 symbol 將會自動註冊進 config
-
 ---
 
 ## 📁 專案結構簡介
@@ -70,19 +68,33 @@ tail -f log/bot.log
 | `logger.py` | 錯誤與交易紀錄儲存 |
 | `monitor.py` | 倉位與滑價狀態查詢 |
 | `performance_tracker.py` | 每筆損益與勝率紀錄 CSV |
-| `start.sh` | 一鍵安裝 + 啟動 bot |
-| `.env.template` | 環境變數樣板 |
-| `log/` | log 與績效資料儲存 |
+| `start_no_sudo.sh` | 背景啟動（無 sudo 適用）|
+| `install_no_sudo.sh` | 一鍵安裝 Python + venv + pip（無 sudo）|
+| `stop.sh` / `status.sh` / `update.sh` | 管理與狀態工具腳本 |
+| `.env.template` | 環境變數樣板檔案 |
+| `log/` | 執行記錄與錯誤輸出資料夾 |
 
 ---
 
-## 📮 進階功能（可擴充）
+## 🧩 常用指令集（部署與管理）
 
-- Line Notify / Telegram 實時通報
-- 自建 Dashboard 前端狀態監控
-- TradingView 回測報表串接
-- 多帳戶自動倉位平衡管理
+| 指令 | 說明 |
+|-------|------|
+| `bash install_no_sudo.sh` | 編譯安裝 Python + 建立虛擬環境 |
+| `bash start_no_sudo.sh` | 啟動 bot 並寫入背景 log |
+| `bash stop.sh` | 停止正在運行的 bot |
+| `bash status.sh` | 查看 bot 是否有在運行中 |
+| `bash update.sh` | 從 GitHub 拉最新程式並重新啟動 bot |
+| `tail -f log/bot.log` | 即時查看 bot 執行輸出 log |
 
 ---
 
-如需協助部署、擴充功能或交易模型優化，歡迎提出 Issue 🙌
+## 📮 可擴充功能（建議）
+
+- ✅ Line Notify / Telegram 警報通知
+- ✅ 前端 Dashboard（Flask + Chart.js）績效視覺化
+- ✅ 多帳戶 / 資金動態分配管理
+
+---
+
+如需協助部署、策略設計或擴充自動化，歡迎提出 Issue 或聯絡開發者 🙌
