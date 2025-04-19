@@ -1,26 +1,34 @@
-# Python virtual environments
-venv/
-
-# Environment variables
-.env
-
-# Logs and output
-log/
-*.log
-
-# Python bytecode
+# Python build
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
 
-# Jupyter Notebook checkpoints
-.ipynb_checkpoints/
+# Virtual env
+venv/
+.env
 
-# macOS system files
+# Logs
+log/
+*.log
+*.csv
+
+# System
 .DS_Store
-
-# VS Code settings
+.idea/
 .vscode/
 
-# Backup or swap files
-*.bak
-*.swp
+# Streamlit
+.streamlit/
+
+# Ignore compiled assets
+*.db
+*.sqlite
+
+# Dashboard report export
+*.pdf
+*.png
+
+# OS
+Thumbs.db
+ehthumbs.db
