@@ -84,6 +84,21 @@ sum_df = sum_df.sort_values('annualized_return_pct', ascending=False)
 st.dataframe(sum_df[['avg_pnl_pct', 'total_pnl_pct', 'annualized_return_pct', 'win_rate', 'trades', 'avg_holding_time_sec']].round(2))
 
 # ➕ 總體績效分析
+
+# 滑價統計區塊
+st.subheader("📉 Slippage Analysis")
+if 'slippage_pct' in perf_df.columns:
+    st.write("平均滑價 (正值為買貴/賣低)：")
+    slippage_summary = perf_df.groupby('strategy_name')['slippage_pct'].agg(['mean', 'max', 'count']).reset_index()
+    slippage_summary.columns = ['strategy_name', 'avg_slippage_pct', 'max_slippage_pct', 'trades']
+    st.dataframe(slippage_summary.round(3))
+
+    st.write("策略平均滑價圖表：")
+    fig_slip = px.bar(slippage_summary, x='strategy_name', y='avg_slippage_pct',
+                      title='Average Slippage per Strategy (%)', text_auto=True)
+    st.plotly_chart(fig_slip, use_container_width=True)
+else:
+    st.info("未偵測到 slippage_pct 欄位，請確認程式有寫入滑價資訊。")
 st.subheader("📦 Overall Portfolio Performance")
 overall_pnl = sum_df['total_pnl_pct'].sum()
 total_days = (perf_df['timestamp'].max() - perf_df['timestamp'].min()).days
