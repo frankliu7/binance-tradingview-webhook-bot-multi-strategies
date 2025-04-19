@@ -11,6 +11,7 @@ import logging
 from config import get_strategy_config
 from util import is_within_slippage, calc_quantity
 from performance_tracker import record_trade
+from datetime import datetime
 
 logger = logging.getLogger("bot")
 
@@ -53,7 +54,7 @@ def handle_order(data):
         if stop_loss:
             place_tp_sl_orders(symbol, side, stop_loss_price=stop_loss)
 
-        # ⬇ 紀錄績效
+        # ⬇ 開倉紀錄績效
         record_trade(
             strategy, symbol, action, side,
             entry_price=price,
@@ -66,7 +67,18 @@ def handle_order(data):
 
     elif action == "EXIT":
         logger.info(f"🚪 [{strategy}] 平倉 {symbol}")
-        close_position(symbol)
+        pos = get_position(symbol)
+        if pos:
+            close_position(symbol)
+            # ⬇ 平倉紀錄績效
+            record_trade(
+                strategy, symbol, action, "SELL" if pos['side'] == "LONG" else "BUY",
+                entry_price=pos['entry'],
+                market_price=get_price(symbol),
+                qty=abs(pos['amt']),
+                tp1=0, tp2=0, sl=0,
+                slippage_pct=0.0
+            )
 
     else:
         logger.warning(f"⚠️ 未知指令：{action}")
