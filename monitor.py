@@ -1,49 +1,40 @@
-# monitor.py
-import time
-from decimal import Decimal
-from config import strategy_config
-from util import get_position_amount
-from api.binance_future import BinanceFutureHttpClient
-from config import API_KEY, API_SECRET
+from config import get_strategy_config
+from position_tracker import get_all_positions
+from binance_future import get_price, get_position
+from datetime import datetime
+from flask import Flask, jsonify
 
-# 用於查詢倉位與組合狀態
-client = BinanceFutureHttpClient(api_key=API_KEY, secret=API_SECRET)
+app = Flask(__name__)
 
-# 暫存滑價異常紀錄
-_slippage_alerts = {}
-
-def record_slippage_alert(strategy_name, result):
-    _slippage_alerts[strategy_name] = {
-        "time": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "slippage_pct": result.get("slippage_pct"),
-        "signal_price": result.get("signal_price"),
-        "executed_price": result.get("executed_price"),
-        "order_id": result.get("order_id")
-    }
-
-def get_monitor_status():
+def get_strategy_status():
     status = {}
-    for strategy, cfg in strategy_config.items():
-        symbol = cfg["symbol"]
-        enabled = cfg.get("enabled", True)
-        capital_pct = cfg.get("capital_pct", 0)
-        max_usdt = cfg.get("max_position_usdt", 0)
-        leverage = cfg.get("leverage", 1)
-        max_slippage_pct = cfg.get("max_slippage_pct", 0.5)
+    positions = get_all_positions()
 
-        # 查詢實際倉位
-        position_amt = get_position_amount(client, symbol)
+    for strategy, cfg in get_strategy_config().items():
+        symbol = cfg.get("symbol", "")
+        pos = positions.get(strategy, 0)
+        market_price = get_price(symbol)
 
-        # 加入狀態輸出
         status[strategy] = {
-            "enabled": enabled,
+            "enabled": cfg.get("enabled", True),
             "symbol": symbol,
-            "capital_pct": capital_pct,
-            "max_position_usdt": max_usdt,
-            "leverage": leverage,
-            "current_position": position_amt,
-            "max_slippage_pct": max_slippage_pct,
-            "slippage_alert": _slippage_alerts.get(strategy, None)
+            "position_qty": pos,
+            "capital_pct": cfg.get("capital_pct"),
+            "leverage": cfg.get("leverage"),
+            "slippage_limit": cfg.get("max_slippage_pct"),
+            "market_price": market_price,
+            "timestamp": datetime.utcnow().isoformat()
         }
-
     return status
+
+@app.route("/monitor", methods=["GET"])
+def monitor_api():
+    return jsonify(get_strategy_status())
+
+def print_strategy_status():
+    from pprint import pprint
+    pprint(get_strategy_status())
+
+if __name__ == "__main__":
+    print("✅ Monitor API running at /monitor")
+    app.run(host="0.0.0.0", port=8890)
