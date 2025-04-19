@@ -1,4 +1,8 @@
 # config.py
+import os
+from dotenv import load_dotenv
+
+load_dotenv()  # 讀取 .env 檔案中的變數
 
 strategy_config = {
     "BTCUSDT_1h_MACD": {
@@ -24,9 +28,7 @@ strategy_config = {
     }
 }
 
-# 安全驗證用的 passphrase
-WEBHOOK_PASSPHRASE = "mysecurepass"
-
-# Binance API 金鑰
-API_KEY = "your_api_key"
-API_SECRET = "your_api_secret"
+# 從環境變數中讀取私密設定
+WEBHOOK_PASSPHRASE = os.getenv("WEBHOOK_PASSPHRASE")
+API_KEY = os.getenv("API_KEY")
+API_SECRET = os.getenv("API_SECRET")
