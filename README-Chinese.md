@@ -1,4 +1,4 @@
-# 📈 Binance TradingView Webhook Bot（多策略模組化版）
+# Binance TradingView Webhook Bot（多策略模組化版）
 
 本專案是一套自動化量化交易機器人，支援接收 TradingView 多策略 webhook 訊號，並透過 Binance API 自動下單。具備多策略管理、資金控管、止盈止損、滑價控制、績效分析 Dashboard 等功能。
 
@@ -43,6 +43,7 @@ bash restart.sh
   "tp2": 70000,
   "sl": 67000,
   "position_pct": 0.2,
+  "leverage": 20,
   "timestamp": 1713696633
 }
 ```
@@ -52,13 +53,14 @@ bash restart.sh
 | 欄位 | 說明 |
 |------|------|
 | `strategy_name` | 策略名稱，對應 config 設定或自動註冊 |
-| `exchange` | 目前支援 `binance`（預計支援 okx） |
-| `action` | `long` / `short` / `exit` |
-| `tp1` / `tp2` / `sl` | 多段止盈 / 止損（選填）<br>➡️ **均為市價單出場，簡化操作流程** |
+| `exchange` | 目前支援 binance（預計支援 okx） |
+| `action` | long / short / exit |
+| `tp1` / `tp2` / `sl` | 多段止盈 / 止損（選填）皆為市價出場 |
 | `position_pct` | 該策略佔總倉位資金比例（若無將使用 config 預設） |
+| `leverage` | ✅ 可傳入每次下單槓桿（若無將使用 config 或自動查最大） |
 | `timestamp` | 訊號 UTC 時間戳，用於滑價延遲比對（選填） |
 
-💡 若策略需實作「追蹤止盈」，建議直接在 TradingView 策略腳本中實作後由 webhook 發送 `action: exit` 通知 bot 平倉。
+💡 若策略需實作「追蹤止盈」，建議直接在 TradingView 策略腳本中實作後由 webhook 發送 action: exit 通知 bot 平倉。
 
 ---
 
@@ -86,10 +88,10 @@ STRATEGIES = {
 MAX_TOTAL_POSITION_PCT = 0.7  # 所有策略最大可用資金總和佔帳戶總額比例
 ```
 
-- `capital_pct`：表示佔整體帳戶資金的百分比（例如 0.1 即為 10%）
-- `MAX_TOTAL_POSITION_PCT`：總體風控限制（如 0.7 = 所有倉位總和不能超過 70%）
-- webhook 中若傳入 `position_pct`，將覆蓋 config 中 `capital_pct` 值
-- 當即將執行策略導致總倉超標時，系統將記錄錯誤並忽略該 webhook，下單失敗但不影響其他策略正常運作
+📌 `capital_pct`：表示佔整體帳戶資金的百分比（例如 0.1 即為 10%）
+📌 `MAX_TOTAL_POSITION_PCT`：總體風控限制（如 0.7 = 所有倉位總和不能超過 70%）
+📌 webhook 中若傳入 `position_pct`，將覆蓋 config 中 `capital_pct` 值
+📌 當即將執行策略導致總倉超標時，系統將記錄錯誤並忽略該 webhook，下單失敗但不影響其他策略正常運作
 
 ---
 
@@ -104,12 +106,11 @@ bash start_dashboard.sh
 ### 包含模組：
 
 - 🧾 資金分配視覺化（圓餅圖 / 長條圖）
-
 - 📋 最近交易明細（TP / SL / PnL% / 持倉秒數）
 - 📈 各策略績效：Sharpe / Sortino / 勝率 / RR 比 / 連勝數
 - 📉 總體 PnL 趨勢與最大回落分析
 - 📆 月度盈虧統計圖表
-- 🧮 **總體資金狀況：倉位佔用比例 / 可用資金 / 超過上限警示** ✅
+- 🧮 總體資金狀況：倉位佔用比例 / 可用資金 / 超過上限警示 ✅
 
 ---
 
@@ -140,19 +141,19 @@ bash start_dashboard.sh
 
 1. 在 TradingView 發送 webhook 測試訊號
 2. 觀察終端機與 log/bot.log 有無錯誤（例如超過最大總倉比例）
-3. 用 `/monitor` API 確認策略是否註冊與倉位狀況
-4. 查看 `log/performance.csv` 是否正確記錄績效
+3. 用 /monitor API 確認策略是否註冊與倉位狀況
+4. 查看 log/performance.csv 是否正確記錄績效
 5. 開啟 Dashboard 確認策略盈虧統計與總體資金佔用情況
 
 ---
 
 ## 🔮 預計功能與 Roadmap
 
-- [ ] 📦 支援 OKX / Bybit 等多交易所擴充
-- [ ] ⌛ 限價掛單 / 止盈移動追蹤（追蹤止盈）
-- [ ] 📬 每日 Telegram / LINE Notify 績效回報
-- [ ] 🧠 策略調度器（RR 比低於閾值自動停用）
-- [ ] 💰 Portfolio 均權配置與風控比重（MAX_TOTAL_POSITION_PCT 支援中）
+- 📦 支援 OKX / Bybit 等多交易所擴充
+- ⌛ 限價掛單 / 止盈移動追蹤（追蹤止盈）
+- 📬 每日 Telegram / LINE Notify 績效回報
+- 🧠 策略調度器（RR 比低於閾值自動停用）
+- 💰 Portfolio 均權配置與風控比重（MAX_TOTAL_POSITION_PCT 支援中）
 
 ---
 
