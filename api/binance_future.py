@@ -24,48 +24,52 @@ def get_position(symbol):
             }
     return None
 
-def place_market_order(symbol, side, quantity):
+def place_market_order(symbol, side, quantity, reduce_only=False):
     order = client.futures_create_order(
         symbol=symbol,
         side=side,
         type="MARKET",
-        quantity=quantity
+        quantity=quantity,
+        reduceOnly=reduce_only
     )
     return order
 
-def place_limit_order(symbol, side, quantity, price, time_in_force="GTC"):
+def place_limit_order(symbol, side, quantity, price, time_in_force="GTC", reduce_only=False):
     order = client.futures_create_order(
         symbol=symbol,
         side=side,
         type="LIMIT",
         timeInForce=time_in_force,
         quantity=quantity,
-        price=str(price)
+        price=str(price),
+        reduceOnly=reduce_only
     )
     return order
 
-def place_tp_sl_orders(symbol, side, quantity, take_profit_price, stop_loss_price):
-    # Take-Profit Order
-    tp_order = client.futures_create_order(
-        symbol=symbol,
-        side="SELL" if side == "BUY" else "BUY",
-        type="TAKE_PROFIT_MARKET",
-        stopPrice=str(take_profit_price),
-        closePosition=True,
-        timeInForce="GTC"
-    )
+def place_tp_sl_orders(symbol, side, take_profit_price=None, stop_loss_price=None):
+    results = {}
 
-    # Stop-Loss Order
-    sl_order = client.futures_create_order(
-        symbol=symbol,
-        side="SELL" if side == "BUY" else "BUY",
-        type="STOP_MARKET",
-        stopPrice=str(stop_loss_price),
-        closePosition=True,
-        timeInForce="GTC"
-    )
+    if take_profit_price:
+        results['tp_order'] = client.futures_create_order(
+            symbol=symbol,
+            side="SELL" if side == "BUY" else "BUY",
+            type="TAKE_PROFIT_MARKET",
+            stopPrice=str(take_profit_price),
+            closePosition=True,
+            timeInForce="GTC"
+        )
 
-    return {"tp_order": tp_order, "sl_order": sl_order}
+    if stop_loss_price:
+        results['sl_order'] = client.futures_create_order(
+            symbol=symbol,
+            side="SELL" if side == "BUY" else "BUY",
+            type="STOP_MARKET",
+            stopPrice=str(stop_loss_price),
+            closePosition=True,
+            timeInForce="GTC"
+        )
+
+    return results
 
 def close_position(symbol):
     pos = get_position(symbol)
@@ -73,4 +77,4 @@ def close_position(symbol):
         return None
     close_side = "SELL" if pos['side'] == "LONG" else "BUY"
     quantity = abs(pos['amt'])
-    return place_market_order(symbol, close_side, quantity)
+    return place_market_order(symbol, close_side, quantity, reduce_only=True)
