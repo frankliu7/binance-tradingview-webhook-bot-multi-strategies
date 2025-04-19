@@ -89,7 +89,7 @@ MAX_TOTAL_POSITION_PCT = 0.7  # 所有策略最大可用資金總和佔帳戶總
 - `capital_pct`：表示佔整體帳戶資金的百分比（例如 0.1 即為 10%）
 - `MAX_TOTAL_POSITION_PCT`：總體風控限制（如 0.7 = 所有倉位總和不能超過 70%）
 - webhook 中若傳入 `position_pct`，將覆蓋 config 中 `capital_pct` 值
-- 當即將執行策略導致總倉超標時，系統將記錄錯誤並拒絕下單
+- 當即將執行策略導致總倉超標時，系統將記錄錯誤並忽略該 webhook，下單失敗但不影響其他策略正常運作
 
 ---
 
