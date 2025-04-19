@@ -96,7 +96,40 @@ st.dataframe(sum_df[['avg_pnl_pct', 'total_pnl_pct', 'annualized_return_pct', 'w
 
 # ➕ 總體績效分析
 
+# 顯示 config 預設設定與總倉風控與個別策略設定
+try:
+    import config
+    st.subheader("⚙️ Config Defaults")
+    default_cfg = config.DEFAULT_STRATEGY_CONFIG.copy()
+    default_cfg["MAX_TOTAL_POSITION_PCT"] = config.MAX_TOTAL_POSITION_PCT
+    st.write(pd.DataFrame(default_cfg.items(), columns=["Parameter", "Value"]))
+
+    st.subheader("📋 Custom Strategy Overrides")
+    strategy_df = pd.DataFrame.from_dict(config.STRATEGIES, orient='index')
+    strategy_df = strategy_df.fillna('-')
+    st.dataframe(strategy_df)
+except Exception as e:
+    st.warning("無法載入 config.py 設定值，請確認是否存在且無語法錯誤。")
+
+# 額外模組狀態顯示
+st.subheader("🧩 Module Insights")
+
+modules = [
+    ("config.py", "📘 策略與參數管理", os.path.exists("config.py")),
+    ("performance_tracker.py", "📈 績效紀錄模組", os.path.exists("performance_tracker.py")),
+    ("position_tracker.py", "📊 倉位追蹤模組", os.path.exists("position_tracker.py")),
+    ("monitor.py", "🩺 即時狀態監控 API", os.path.exists("monitor.py")),
+    ("util.py", "🛠️ 公用工具/滑價計算等", os.path.exists("util.py")),
+    ("analyze_performance.py", "📊 績效進階分析（可選）", os.path.exists("analyze_performance.py"))
+]
+
+for path, label, status in modules:
+    icon = "✅" if status else "❌"
+    st.write(f"{icon} **{label}** ({path})")
+
 # 滑價統計區塊
+
+# 若有 slippage_tick 欄位，加入 tick 表示的統計與圖表
 st.subheader("📉 Slippage Analysis")
 if 'slippage_pct' in perf_df.columns:
     st.write("平均滑價 (正值為買貴/賣低)：")
@@ -110,6 +143,18 @@ if 'slippage_pct' in perf_df.columns:
     st.plotly_chart(fig_slip, use_container_width=True)
 else:
     st.info("未偵測到 slippage_pct 欄位，請確認程式有寫入滑價資訊。")
+
+if 'slippage_tick' in perf_df.columns:
+    st.write("策略平均滑價 (以 tick 表示)：")
+    slippage_tick_summary = perf_df.groupby('strategy_name')['slippage_tick'].agg(['mean', 'max', 'count']).reset_index()
+    slippage_tick_summary.columns = ['strategy_name', 'avg_slippage_tick', 'max_slippage_tick', 'trades']
+    st.dataframe(slippage_tick_summary.round(2))
+
+    fig_tick = px.bar(slippage_tick_summary, x='strategy_name', y='avg_slippage_tick',
+                      title='Average Slippage per Strategy (ticks)', text_auto=True)
+    st.plotly_chart(fig_tick, use_container_width=True)
+else:
+    st.info("未偵測到 slippage_tick 欄位，請確認程式有寫入 tick 單位滑價。")
 st.subheader("📦 Overall Portfolio Performance")
 overall_pnl = sum_df['total_pnl_pct'].sum()
 total_days = (perf_df['timestamp'].max() - perf_df['timestamp'].min()).days
