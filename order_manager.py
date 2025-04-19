@@ -1,80 +1,83 @@
-import logging
 from decimal import Decimal
 from config import get_strategy_config, MAX_TOTAL_POSITION_PCT
-from util import get_total_balance, get_open_position_value
-from binance_future import BinanceFutureHttpClient, OrderSide, OrderType
+from binance_future import BinanceFutureHttpClient
 from performance_tracker import record_trade
+from util import get_total_balance, get_open_position_value
+import os
 
-def should_block_order(binance_client, symbol, position_value_estimate: Decimal) -> bool:
-    try:
-        total_balance = get_total_balance(binance_client)
-        current_open = get_open_position_value(binance_client, symbol)
-        total_after_order = current_open + position_value_estimate
-        max_allowed = total_balance * Decimal(str(MAX_TOTAL_POSITION_PCT))
+binance_client = BinanceFutureHttpClient(
+    api_key=os.getenv("BINANCE_API_KEY"),
+    secret=os.getenv("BINANCE_API_SECRET")
+)
 
-        if total_after_order > max_allowed:
-            logging.warning(f"[風控] 倉位超過總額限制：目前 {total_after_order} > 上限 {max_allowed}")
-            return True
-    except Exception as e:
-        logging.error(f"[風控] 檢查總體倉位失敗: {e}")
-    return False
-
-def handle_order(data: dict, binance_client: BinanceFutureHttpClient):
+def handle_order(data):
     strategy_name = data.get("strategy_name")
-    symbol = data.get("symbol")
-    action = data.get("action").lower()
-    entry_price = Decimal(str(data.get("price")))
+    action = data.get("action", "").upper()
+    symbol = data.get("symbol", "BTCUSDT")
+    signal_price = Decimal(str(data.get("price", "0")))
     timestamp = data.get("timestamp", None)
 
-    # TP/SL 支援
-    tp1 = Decimal(str(data.get("tp1", 0)))
-    tp2 = Decimal(str(data.get("tp2", 0)))
-    sl = Decimal(str(data.get("sl", 0)))
-
-    if not all([strategy_name, symbol, action, entry_price]):
-        logging.error("[handle_order] 缺少必要參數")
-        return
-
+    # 取得策略設定（如無則 fallback）
     config = get_strategy_config(strategy_name)
-    capital_pct = Decimal(str(data.get("position_pct", config["capital_pct"])))
-    leverage = Decimal(str(config["leverage"]))
-    max_slippage_pct = Decimal(str(config["max_slippage_pct"]))
+    capital_pct = Decimal(str(config["capital_pct"]))
+    leverage = Decimal(str(data.get("leverage", config["leverage"])))
+    max_qty = Decimal(str(config.get("max_qty", 0.1)))
+    max_slippage_pct = Decimal(str(config.get("max_slippage_pct", 0.5)))
 
-    # 計算下單金額（估算用於風控）
+    # 取得帳戶總資金與目前持倉
     total_balance = get_total_balance(binance_client)
-    estimated_value = total_balance * capital_pct * leverage
+    notional_now = get_open_position_value(binance_client, symbol)
+    max_allowed = total_balance * Decimal(str(MAX_TOTAL_POSITION_PCT))
 
-    if should_block_order(binance_client, symbol, estimated_value):
-        logging.warning(f"[忽略] 超出總體倉位上限，略過策略 {strategy_name} 下單")
+    # 預估下單持倉金額
+    order_notional = total_balance * capital_pct * leverage
+
+    if notional_now + order_notional > max_allowed:
+        print(f"[❌ 超過總倉上限] 拒絕策略 {strategy_name} 下單, 欲下倉位: {order_notional}, 已佔用: {notional_now}, 上限: {max_allowed}")
         return
 
-    qty = estimated_value / entry_price
-    # 可加 max_qty 限制
+    # 計算下單數量（幣種）
+    status, ticker = binance_client.get_ticker(symbol)
+    mark_price = Decimal(ticker["askPrice"]) if status == 200 else signal_price
+    quantity = (order_notional / mark_price).quantize(Decimal("0.0001"))
 
-    logging.info(f"[下單] {strategy_name} | {action.upper()} | {symbol} | 金額: {estimated_value:.2f} | 價格: {entry_price:.2f}")
+    if quantity > max_qty:
+        quantity = max_qty
 
-    # 下市價單
-    side = OrderSide.BUY if action == "long" else OrderSide.SELL
+    # 檢查滑價
+    slippage = abs(mark_price - signal_price) / signal_price * 100
+    if slippage > max_slippage_pct:
+        print(f"[❌ 滑價過高] 策略 {strategy_name} 滑價 {slippage:.2f}% 超過上限 {max_slippage_pct}%")
+        return
+
+    # ✅ 設定幣安槓桿倍率（使用 webhook 或自動查詢）
+    leverage_int = int(leverage)
+    if "leverage" not in data:
+        leverage_int = binance_client.get_max_leverage(symbol)
+    binance_client.set_leverage(symbol, leverage_int)
+
+    # ✅ 市價單方向
+    side = "BUY" if action == "LONG" else "SELL"
+    print(f"[📥 下單] 策略: {strategy_name}, 動作: {action}, 數量: {quantity}, 價格: {mark_price}, 槓桿: {leverage_int}x")
+
+    # ⛳ 下市價單
     status, order = binance_client.place_order(
         symbol=symbol,
         order_side=side,
-        order_type=OrderType.MARKET,
-        quantity=qty,
-        price=entry_price
+        order_type="MARKET",
+        quantity=quantity,
+        price=mark_price  # 對市價單會自動忽略
     )
 
     if status == 200:
-        logging.info(f"[成功] 下單成功: {order.get('orderId')}")
         record_trade(
             strategy_name=strategy_name,
             symbol=symbol,
-            side=action,
-            entry_price=entry_price,
-            qty=qty,
-            tp1=tp1,
-            tp2=tp2,
-            sl=sl,
-            timestamp=timestamp
+            side=side,
+            price=float(mark_price),
+            qty=float(quantity),
+            timestamp=timestamp,
+            is_entry=True
         )
     else:
-        logging.warning(f"[失敗] 下單失敗: {order}")
+        print(f"[❌ 下單失敗] 策略: {strategy_name}, 錯誤: {order}")
