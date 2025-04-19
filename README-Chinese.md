@@ -1,137 +1,148 @@
-# Binance TradingView Webhook Bot
+# 📈 Binance TradingView Webhook Bot（多策略模組化版）
 
-## 🚀 VPS 部署快速指南（無需 sudo 權限）
+本專案是一套自動化量化交易機器人，支援接收 TradingView 多策略 webhook 訊號，並透過 Binance API 自動下單。具備多策略管理、資金控管、止盈止損、滑價控制、績效分析 Dashboard 等功能。
 
-1️⃣ 登入 VPS（使用 Cloudways 提供的 SSH）
+---
+
+## 🚀 快速啟動（免 sudo VPS 友善）
+
 ```bash
-ssh master_帳號@<你的VPS_IP>
-```
-
-2️⃣ 複製專案
-```bash
-git clone https://github.com/<你的帳號>/binance-tradingview-webhook-bot-multi-strategies.git
-cd binance-tradingview-webhook-bot-multi-strategies
-```
-
-3️⃣ 設定環境變數
-```bash
-cp .env.template .env
-nano .env  # 輸入 Binance API 金鑰與 webhook 密碼
-```
-
-4️⃣ 執行安裝（會自動下載 Python 並建立 venv）
-```bash
+# ⬇️ 第一次安裝
 bash install_no_sudo.sh
-```
 
-5️⃣ 背景啟動 bot
-```bash
-bash start_no_sudo.sh
-```
+# ▶️ 啟動主程式（Webhook Server）
+bash start.sh
 
-6️⃣ 檢查是否運行成功
-```bash
-bash status.sh
-# 或查看即時 log
+# ▶️ 啟動 Dashboard
+bash start_dashboard.sh
 
-tail -f log/bot.log
-```
+# ❌ 停止主程式 / Dashboard
+bash stop.sh
+bash stop_dashboard.sh
 
-本專案是一個模組化的幣安自動交易機器人，能接收 TradingView 訊號、依據策略自動下單、風控控管、多策略資金分配、滑價處理與績效紀錄。
+# 🔄 更新程式碼 + 重啟所有服務
+bash update.sh
 
----
-
-## ✅ 功能特色
-
-- 多策略 webhook 接收與管理
-- 策略自動註冊，無需手動設定 config
-- 單策略資金分配、槓桿風控、最大倉位控制
-- 即時倉位監控、自動滑價偵測與異常拒單
-- 成交紀錄 + PnL 績效儲存（CSV）
-- 支援 `.env` 金鑰管理、log 記錄、dashboard 查詢介面
-
----
-
-## 📦 安裝說明（無 sudo VPS 適用）
-
-### 1️⃣ 複製專案
-```bash
-git clone https://github.com/你的帳號/binance-tradingview-webhook-bot-multi-strategies.git
-cd binance-tradingview-webhook-bot-multi-strategies
-```
-
-### 2️⃣ 設定環境變數
-```bash
-cp .env.template .env
-nano .env  # 編輯填入金鑰與密碼
-```
-
-### 3️⃣ 執行安裝（自編譯 Python）
-```bash
-bash install_no_sudo.sh
-```
-
-### 4️⃣ 啟動 bot（背景執行）
-```bash
-bash start_no_sudo.sh
+# ♻️ 手動重新啟動（不拉 git）
+bash restart.sh
 ```
 
 ---
 
-## 🚀 TradingView Webhook 格式
-
-請將以下格式設定在你的策略 webhook JSON 中：
+## 📬 TradingView Webhook 格式（支援 TP/SL 多段）
 
 ```json
 {
-  "strategy_name": "BTC_1h_MACD",
+  "passphrase": "你的密碼",
+  "strategy_name": "BTCUSDT_1h_MACD",
   "symbol": "BTCUSDT",
-  "exchange": "binance_future",
-  "action": "LONG",  // 或 SHORT / EXIT
-  "price": 67500,
-  "passphrase": "你的 webhook 密碼"
+  "exchange": "binance",
+  "action": "long",
+  "price": 68000,
+  "tp1": 69000,
+  "tp2": 70000,
+  "sl": 67000,
+  "timestamp": 1713696633
 }
+```
+
+### 🔑 支援參數：
+
+| 欄位 | 說明 |
+|------|------|
+| `strategy_name` | 策略名稱，對應 config 設定或自動註冊 |
+| `exchange` | 目前支援 `binance`（預計支援 okx） |
+| `action` | `long` / `short` / `exit` |
+| `tp1` / `tp2` / `sl` | 多段止盈 / 止損（選填） |
+| `timestamp` | 訊號 UTC 時間戳，用於滑價延遲比對（選填） |
+
+---
+
+## ⚙️ 策略設定 config.py 範例
+
+```python
+DEFAULT_STRATEGY_CONFIG = {
+    "capital_pct": 0.1,
+    "leverage": 10,
+    "max_slippage_pct": 0.5,
+    "enabled": True,
+    "max_position_usdt": 1000
+}
+
+STRATEGIES = {
+    "BTCUSDT_1h_MACD": {
+        "capital_pct": 0.2,
+        "leverage": 5
+    },
+    "ETHUSDT_15m_RSI": {
+        "enabled": False
+    }
+}
+```
+
+- 可設定各策略獨立參數，未設定的欄位使用 `DEFAULT_STRATEGY_CONFIG`
+- 新策略如未出現在 `STRATEGIES` 中，系統會**自動註冊並套用預設設定**
+
+---
+
+## 📊 Dashboard 績效儀表板
+
+```bash
+bash start_dashboard.sh
+```
+
+📍 預設開啟於：http://<你的 VPS IP>:8501
+
+### 包含模組：
+
+- 📋 最近交易明細（TP / SL / PnL% / 持倉秒數）
+- 📈 各策略績效：Sharpe / Sortino / 勝率 / RR 比 / 連勝數
+- 📉 總體 PnL 趨勢與最大回落分析
+- 📆 月度盈虧統計圖表
+
+---
+
+## 📁 專案架構說明
+
+```
+📦 binance-tradingview-webhook-bot-multi-strategies
+├── main.py                 # Webhook 接收入口
+├── order_manager.py        # 處理進出場策略邏輯
+├── binance_future.py       # Binance 下單模組（可替換 okx）
+├── config.py               # 策略設定檔
+├── performance_tracker.py  # 交易紀錄與績效分析
+├── position_tracker.py     # 倉位追蹤（多策略）
+├── monitor.py              # API 顯示策略狀態
+├── dashboard.py            # Streamlit Dashboard 報表
+├── util.py                 # 公用方法（滑價計算等）
+├── requirements.txt
+├── .env.template           # API 金鑰模板
+├── log/                    # 包含 performance.csv 與錯誤日誌
+├── start.sh / stop.sh / restart.sh
+├── start_dashboard.sh / stop_dashboard.sh
+├── update.sh / install_no_sudo.sh
 ```
 
 ---
 
-## 📁 專案結構簡介
+## 🧪 測試建議流程
 
-| 檔案/資料夾 | 說明 |
-|--------------|------|
-| `main.py` | webhook 接收與策略分發邏輯 |
-| `config.py` | 策略設定，自動註冊參數與金鑰載入 |
-| `order_manager.py` | 下單風控、滑價、倉位、績效統一控管 |
-| `logger.py` | 錯誤與交易紀錄儲存 |
-| `monitor.py` | 倉位與滑價狀態查詢 |
-| `performance_tracker.py` | 每筆損益與勝率紀錄 CSV |
-| `start_no_sudo.sh` | 背景啟動（無 sudo 適用）|
-| `install_no_sudo.sh` | 一鍵安裝 Python + venv + pip（無 sudo）|
-| `stop.sh` / `status.sh` / `update.sh` | 管理與狀態工具腳本 |
-| `.env.template` | 環境變數樣板檔案 |
-| `log/` | 執行記錄與錯誤輸出資料夾 |
+1. 在 TradingView 發送 webhook 測試訊號
+2. 觀察終端機與 log/bot.log 有無錯誤
+3. 用 `/monitor` API 確認策略是否註冊與倉位狀況
+4. 查看 `log/performance.csv` 是否正確記錄績效
+5. 開啟 Dashboard 確認策略盈虧統計
 
 ---
 
-## 🧩 常用指令集（部署與管理）
+## 🔮 預計功能與 Roadmap
 
-| 指令 | 說明 |
-|-------|------|
-| `bash install_no_sudo.sh` | 編譯安裝 Python + 建立虛擬環境 |
-| `bash start_no_sudo.sh` | 啟動 bot 並寫入背景 log |
-| `bash stop.sh` | 停止正在運行的 bot |
-| `bash status.sh` | 查看 bot 是否有在運行中 |
-| `bash update.sh` | 從 GitHub 拉最新程式並重新啟動 bot |
-| `tail -f log/bot.log` | 即時查看 bot 執行輸出 log |
+- [ ] 📦 支援 OKX / Bybit 等多交易所擴充
+- [ ] ⌛ 限價掛單 / 止盈移動追蹤（追蹤止盈）
+- [ ] 📬 每日 Telegram / LINE Notify 績效回報
+- [ ] 🧠 策略調度器（RR 比低於閾值自動停用）
+- [ ] 💰 Portfolio 均權配置與風控比重
 
 ---
 
-## 📮 可擴充功能（建議）
-
-- ✅ Line Notify / Telegram 警報通知
-- ✅ 前端 Dashboard（Flask + Chart.js）績效視覺化
-- ✅ 多帳戶 / 資金動態分配管理
-
----
-
-如需協助部署、策略設計或擴充自動化，歡迎提出 Issue 或聯絡開發者 🙌
+📬 有任何問題請開啟 Issue 或聯繫作者。一起打造模組化量化交易基礎架構 🔧
