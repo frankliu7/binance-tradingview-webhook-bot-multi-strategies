@@ -1,6 +1,7 @@
-# requirements.txt
 flask
 requests
 decimal
 pandas
+streamlit
+plotly
 python-dotenv
