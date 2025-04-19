@@ -1,21 +1,30 @@
-from decimal import Decimal, ROUND_DOWN
+# util.py
+from decimal import Decimal
 
-
-def round_to(value: float, target: Decimal) -> Decimal:
+def get_account_balance(client, asset="USDT"):
     """
-    Round price to price tick value.
+    回傳帳戶該資產的可用餘額（期貨帳戶）
     """
-    value = Decimal(str(value))
-    rounded = value.quantize(target)
+    try:
+        data = client.get_balance()
+        for item in data:
+            if item["asset"] == asset:
+                return float(item["balance"])
+    except Exception as e:
+        print(f"取得帳戶餘額錯誤: {e}")
+    return 0.0
 
-    return rounded
-
-
-def floor_to(value: float, target: Decimal) -> Decimal:
+def get_position_amount(client, symbol):
     """
-    Similar to math.floor function, but to target float number.
+    回傳該交易對的目前持倉量：
+    正數表示多單，負數表示空單，0 表示無倉位。
     """
-    value = Decimal(str(value))
-    result = value.quantize(target, rounding=ROUND_DOWN)
-
-    return result
+    try:
+        positions = client.get_position()
+        for pos in positions:
+            if pos["symbol"] == symbol:
+                amt = Decimal(pos["positionAmt"])
+                return float(amt)
+    except Exception as e:
+        print(f"取得倉位失敗: {e}")
+    return 0.0
