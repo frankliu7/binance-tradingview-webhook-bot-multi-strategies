@@ -50,6 +50,17 @@ else:
     st.info("尚未有任何持倉紀錄...")
 
 # 最新交易明細
+
+# ✅ 滑價過大異常統計
+st.subheader("🚨 Slippage Alerts")
+slip_threshold = 0.5  # 可自定義
+if 'slippage_pct' in perf_df.columns:
+    slip_abnormal = perf_df[perf_df['slippage_pct'].abs() > slip_threshold]
+    if not slip_abnormal.empty:
+        st.warning(f"偵測到 {len(slip_abnormal)} 筆滑價超過 ±{slip_threshold}% 的異常交易：")
+        st.dataframe(slip_abnormal[['timestamp', 'strategy_name', 'symbol', 'side', 'price', 'slippage_pct']])
+    else:
+        st.success("無滑價異常紀錄。")
 df_recent = perf_df.sort_values('timestamp', ascending=False).head(30)
 st.subheader("🧾 Recent Trades")
 st.dataframe(df_recent[['timestamp', 'strategy_name', 'symbol', 'side', 'price', 'qty', 'pnl_pct', 'duration_sec']])
