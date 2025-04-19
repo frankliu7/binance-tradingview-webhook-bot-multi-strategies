@@ -1,31 +1,22 @@
 # config.py
-import os
-from dotenv import load_dotenv
 
-load_dotenv()  # 讀取 .env 檔案中的變數
-
-strategy_config = {}
-
-# 動態註冊策略預設參數
-DEFAULT_STRATEGY_SETTINGS = {
-    "enabled": True,
-    "exchange": "binance_future",
-    "capital_pct": 0.05,
-    "max_position_usdt": 200,
-    "leverage": 5,
-    "trading_volume": 0.01,
-    "max_slippage_pct": 0.3
+strategies = {
+    "BTC_MACD": {
+        "capital_pct": 0.1,
+        "leverage": 10,
+        "max_qty": 0.05,
+        "max_slippage_pct": 0.5
+    },
+    # 可手動新增更多策略...
 }
 
-def register_strategy(name, symbol):
-    if name not in strategy_config:
-        strategy_config[name] = DEFAULT_STRATEGY_SETTINGS.copy()
-        strategy_config[name]["symbol"] = symbol
+# 預設策略參數（當 strategy_name 未在上方註冊時會使用）
+DEFAULT_STRATEGY_CONFIG = {
+    "capital_pct": 0.05,           # 預設佔用資金 5%
+    "leverage": 5,                 # 預設槓桿 5 倍
+    "max_qty": 0.03,               # 預設最大倉位
+    "max_slippage_pct": 0.5        # 預設滑價容忍 0.5%
+}
 
-# ✅ 示範自動註冊策略（可刪掉）
-# register_strategy("BTCUSDT_5m_ATR", "BTCUSDT")
-
-# 從環境變數中讀取私密設定
-WEBHOOK_PASSPHRASE = os.getenv("WEBHOOK_PASSPHRASE")
-API_KEY = os.getenv("API_KEY")
-API_SECRET = os.getenv("API_SECRET")
+def get_strategy_config(name):
+    return strategies.get(name, DEFAULT_STRATEGY_CONFIG.copy())
