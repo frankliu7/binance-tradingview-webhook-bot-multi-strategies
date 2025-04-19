@@ -1,73 +1,43 @@
-# order_manager.py
-from api.binance_future import BinanceFutureHttpClient, OrderSide, OrderType
-from config import API_KEY, API_SECRET
-from util import get_account_balance, get_position_amount
+import logging
 from decimal import Decimal
-from logger import log_trade
+from util import get_binance_price, within_slippage
+from config import get_strategy_config
+from position_tracker import record_position
 
-client = BinanceFutureHttpClient(api_key=API_KEY, secret=API_SECRET)
+logger = logging.getLogger("bot")
 
-def execute_order(cfg, action, signal_price):
-    symbol = cfg["symbol"]
-    capital_pct = cfg.get("capital_pct", 1.0)
-    leverage = cfg.get("leverage", 1)
-    max_usdt = cfg.get("max_position_usdt", 999999)
-    fallback_volume = cfg.get("trading_volume", 0.01)
+def handle_order(data):
+    strategy_name = data.get("strategy_name")
+    symbol = data.get("symbol")
+    action = data.get("action")
+    price = float(data.get("price", 0))
+    tp1 = float(data.get("take_profit_1", 0))
+    tp2 = float(data.get("take_profit_2", 0))
+    tp_ratio_1 = float(data.get("tp_ratio_1", 0.5))
+    tp_ratio_2 = float(data.get("tp_ratio_2", 0.5))
+    stop_loss = float(data.get("stop_loss", 0))
+    timestamp = data.get("timestamp")
 
-    # 查詢帳戶總資金（USDT）與目前倉位
-    balance = get_account_balance(client, asset="USDT")
-    current_position = get_position_amount(client, symbol)
+    logger.info(f"處理策略 {strategy_name}: {action} @ {price}, TP1={tp1}, TP2={tp2}, SL={stop_loss}, TS={timestamp}")
 
-    # 計算理論下單金額（使用資金比例與槓桿）
-    max_trade_usdt = balance * capital_pct * leverage
-    remaining_allowable = max_usdt - (abs(current_position) * signal_price)
-    final_trade_usdt = min(max_trade_usdt, remaining_allowable)
+    # 取得當前幣安價格，比對滑價
+    market_price = get_binance_price(symbol)
+    if not within_slippage(price, market_price):
+        logger.warning(f"⛔ 滑價過大：signal={price}, market={market_price}")
+        return
 
-    # 若可下單金額太小，則使用 fallback trading_volume
-    if final_trade_usdt < 5:
-        quantity = fallback_volume
+    # 下單模擬邏輯（之後可改成 binance 下單）
+    if action == "LONG":
+        logger.info(f"✅ 開多倉 @ {market_price} - 止盈1: {tp1} ({tp_ratio_1*100}%) 止盈2: {tp2} ({tp_ratio_2*100}%) 止損: {stop_loss}")
+        record_position(strategy_name, symbol, "LONG", market_price, tp1, tp2, tp_ratio_1, tp_ratio_2, stop_loss, timestamp)
+
+    elif action == "SHORT":
+        logger.info(f"✅ 開空倉 @ {market_price} - 止盈1: {tp1} ({tp_ratio_1*100}%) 止盈2: {tp2} ({tp_ratio_2*100}%) 止損: {stop_loss}")
+        record_position(strategy_name, symbol, "SHORT", market_price, tp1, tp2, tp_ratio_1, tp_ratio_2, stop_loss, timestamp)
+
+    elif action == "EXIT":
+        logger.info(f"🚪 平倉指令收到 for {strategy_name}")
+        # 👉 TODO: 加入實際倉位查詢與市價平倉邏輯
+
     else:
-        quantity = round(Decimal(final_trade_usdt / signal_price), 4)
-
-    # 根據 action 決定下單方向或平倉
-    if action.upper() == "LONG":
-        order_side = OrderSide.BUY
-    elif action.upper() == "SHORT":
-        order_side = OrderSide.SELL
-    elif action.upper() == "EXIT":
-        if current_position > 0:
-            order_side = OrderSide.SELL
-            quantity = abs(current_position)
-        elif current_position < 0:
-            order_side = OrderSide.BUY
-            quantity = abs(current_position)
-        else:
-            return {"status": "no position to exit"}
-    else:
-        raise ValueError("不支援的動作")
-
-    # 建立 order_id
-    order_id = client.get_client_order_id()
-
-    # 執行市價單下單
-    status, order = client.place_order(
-        symbol=symbol,
-        order_side=order_side,
-        order_type=OrderType.MARKET,
-        quantity=quantity,
-        price=Decimal(str(signal_price)),
-        client_order_id=order_id
-    )
-
-    if status == 200:
-        executed_price = float(order.get("avgFillPrice") or order.get("price"))
-        result = {
-            "qty": float(order.get("executedQty")),
-            "executed_price": executed_price,
-            "order_id": order_id,
-            "status": "filled"
-        }
-        log_trade(cfg["symbol"], action, result)
-        return result
-    else:
-        raise Exception(f"下單失敗: {order}")
+        logger.warning(f"⚠️ 未知 action: {action}")
