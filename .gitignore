@@ -1,34 +1,48 @@
-# Python build
+# ✅ Python & Virtualenv
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
 *.pyd
-
-# Virtual env
+.venv/
 venv/
-.env
+env/
+.Python
 
-# Logs
-log/
-*.log
-*.csv
-
-# System
-.DS_Store
-.idea/
+# ✅ VSCode 開發環境
 .vscode/
 
-# Streamlit
+# ✅ 秘密環境變數
+.env
+.env.*
+
+# ✅ 記錄檔 / 日誌
+log/
+*.log
+
+# ✅ 成果 CSV / 分析報表
+*.csv
+!log/performance.csv
+!log/analyze_summary.csv
+
+# ✅ Jupyter & IPython
+.ipynb_checkpoints/
+*.ipynb
+
+# ✅ 系統與部署暫存
+.DS_Store
+*.swp
+*.swo
+*.bak
+
+# ✅ Docker / Build Cache（如有使用）
+__docker_build__/
+build/
+dist/
+
+# ✅ Streamlit 快取（避免誤傳使用者快取）
 .streamlit/
 
-# Ignore compiled assets
-*.db
-*.sqlite
-
-# Dashboard report export
-*.pdf
-*.png
-
-# OS
-Thumbs.db
-ehthumbs.db
+# ✅ 機器學習模型暫存（如後續整合 AI 模型）
+*.h5
+*.pkl
+*.joblib
