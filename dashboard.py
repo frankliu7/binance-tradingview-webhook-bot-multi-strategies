@@ -96,6 +96,52 @@ st.dataframe(sum_df[['avg_pnl_pct', 'total_pnl_pct', 'annualized_return_pct', 'w
 
 # ➕ 總體績效分析
 
+# ➕ monitor.py API 狀態
+try:
+    import requests
+    st.subheader("🩺 /monitor API Status")
+    resp = requests.get("http://localhost:8888/monitor", timeout=5)
+    if resp.status_code == 200:
+        monitor_data = resp.json()
+        st.success("API 回應成功")
+        st.json(monitor_data)
+    else:
+        st.warning(f"/monitor 回應錯誤：{resp.status_code}")
+except Exception as e:
+    st.warning(f"/monitor API 無法呼叫：{e}")
+
+# ➕ position_tracker 實際倉位
+try:
+    import position_tracker
+    st.subheader("📊 Position Tracker Info")
+    pos = position_tracker.get_all_positions()
+    st.dataframe(pd.DataFrame(pos))
+except Exception as e:
+    st.warning(f"無法讀取 position_tracker 倉位資料：{e}")
+
+# ➕ util.py 測試區塊
+try:
+    import util
+    st.subheader("🛠️ Slippage Test Tool")
+    mock_entry = 10000
+    mock_actual = 10050
+    tick_size = 10
+    slippage_pct = util.calc_slippage_pct(mock_entry, mock_actual)
+    slippage_tick = (mock_actual - mock_entry) / tick_size
+    st.code(f"從 TradingView 傳來價格：{mock_entry}
+實際成交價格：{mock_actual}
+→ 滑價為：{slippage_pct:.2f}% ({slippage_tick:.2f} ticks)")
+except Exception as e:
+    st.warning(f"無法載入滑價工具：{e}")
+
+# ➕ analyze_performance 額外分析（若存在）
+st.subheader("📊 Advanced Performance Analysis")
+if os.path.exists("log/analyze_summary.csv"):
+    analyze_df = pd.read_csv("log/analyze_summary.csv")
+    st.dataframe(analyze_df)
+else:
+    st.info("尚未產生 analyze_performance 統計報表。")
+
 # 顯示 config 預設設定與總倉風控與個別策略設定
 try:
     import config
