@@ -3,6 +3,7 @@ from api.binance_future import BinanceFutureHttpClient, OrderSide, OrderType
 from config import API_KEY, API_SECRET
 from util import get_account_balance, get_position_amount
 from decimal import Decimal
+from logger import log_trade
 
 client = BinanceFutureHttpClient(api_key=API_KEY, secret=API_SECRET)
 
@@ -28,12 +29,20 @@ def execute_order(cfg, action, signal_price):
     else:
         quantity = round(Decimal(final_trade_usdt / signal_price), 4)
 
-    # 根據 action 決定下單方向
-    order_side = None
+    # 根據 action 決定下單方向或平倉
     if action.upper() == "LONG":
         order_side = OrderSide.BUY
     elif action.upper() == "SHORT":
         order_side = OrderSide.SELL
+    elif action.upper() == "EXIT":
+        if current_position > 0:
+            order_side = OrderSide.SELL
+            quantity = abs(current_position)
+        elif current_position < 0:
+            order_side = OrderSide.BUY
+            quantity = abs(current_position)
+        else:
+            return {"status": "no position to exit"}
     else:
         raise ValueError("不支援的動作")
 
@@ -52,11 +61,13 @@ def execute_order(cfg, action, signal_price):
 
     if status == 200:
         executed_price = float(order.get("avgFillPrice") or order.get("price"))
-        return {
+        result = {
             "qty": float(order.get("executedQty")),
             "executed_price": executed_price,
             "order_id": order_id,
             "status": "filled"
         }
+        log_trade(cfg["symbol"], action, result)
+        return result
     else:
         raise Exception(f"下單失敗: {order}")
