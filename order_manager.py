@@ -4,11 +4,12 @@ from binance_future import (
     place_market_order,
     place_limit_order,
     place_tp_sl_orders,
-    close_position
+    close_position,
+    get_account_balance
 )
 import logging
 from config import get_strategy_config
-from util import is_within_slippage
+from util import is_within_slippage, calc_quantity
 
 logger = logging.getLogger("bot")
 
@@ -36,7 +37,8 @@ def handle_order(data):
         return
 
     if action in ["LONG", "SHORT"]:
-        total_qty = 0.01
+        usdt_balance = get_account_balance()
+        total_qty = calc_quantity(market_price, config, usdt_balance)
         qty1 = round(total_qty * tp_ratio_1, 4)
         qty2 = round(total_qty * tp_ratio_2, 4)
 
