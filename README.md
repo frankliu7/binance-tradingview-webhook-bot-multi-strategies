@@ -1,118 +1,160 @@
-# Binance TradingView Webhook Bot
+# Binance TradingView Webhook Bot (Multi-Strategy Modular Version)
 
-## 🚀 VPS Deployment Quick Guide (No sudo required)
+This project is an automated crypto trading bot designed to receive TradingView webhook alerts from multiple strategies and automatically execute orders via the Binance API. Features include multi-strategy management, capital allocation, TP/SL handling, slippage control, and a dashboard for performance analysis.
 
-1️⃣ Login to your VPS (via Cloudways SSH)
+---
+
+## 🚀 Quick Start (No sudo required for VPS)
+
 ```bash
-ssh master_username@<YOUR_VPS_IP>
-```
-
-2️⃣ Clone the project
-```bash
-git clone https://github.com/<your-account>/binance-tradingview-webhook-bot-multi-strategies.git
-cd binance-tradingview-webhook-bot-multi-strategies
-```
-
-3️⃣ Set up environment variables
-```bash
-cp .env.template .env
-nano .env  # Fill in your Binance API key/secret and webhook passphrase
-```
-
-4️⃣ Install environment (compiles Python & creates venv)
-```bash
+# ⬇️ First-time Installation
 bash install_no_sudo.sh
-```
 
-5️⃣ Start the bot in background
-```bash
-bash start_no_sudo.sh
-```
+# ▶️ Start Main Bot (Webhook Server)
+bash start.sh
 
-6️⃣ Check if the bot is running
-```bash
-bash status.sh
-# Or view live log:
-tail -f log/bot.log
-```
+# ▶️ Start Performance Dashboard
+bash start_dashboard.sh
 
----
+# ❌ Stop Bot / Dashboard
+bash stop.sh
+bash stop_dashboard.sh
 
-## ✅ Features
+# 🔄 Update Codebase + Restart Services
+bash update.sh
 
-- Multiple strategy support via webhook
-- Auto strategy registration (no need to pre-edit config)
-- Per-strategy capital allocation, leverage & max position control
-- Real-time position monitoring, slippage control & rejection logging
-- PnL and trade logs saved per strategy
-- `.env` support for API key security and log directory separation
-
----
-
-## 📦 Installation (For VPS without sudo)
-
-```bash
-git clone https://github.com/<your-account>/binance-tradingview-webhook-bot-multi-strategies.git
-cd binance-tradingview-webhook-bot-multi-strategies
-cp .env.template .env
-bash install_no_sudo.sh
-bash start_no_sudo.sh
+# ♻️ Manual Restart (without pulling git)
+bash restart.sh
 ```
 
 ---
 
-## 🔔 TradingView Webhook JSON Format
+## 📬 TradingView Webhook Format (Supports TP/SL Levels)
 
 ```json
 {
-  "strategy_name": "BTC_1h_MACD",
+  "passphrase": "your_passphrase",
+  "strategy_name": "BTCUSDT_1h_MACD",
   "symbol": "BTCUSDT",
-  "exchange": "binance_future",
-  "action": "LONG",  // or SHORT / EXIT
-  "price": 67500,
-  "passphrase": "your_webhook_password"
+  "exchange": "binance",
+  "action": "long",
+  "price": 68000,
+  "tp1": 69000,
+  "tp2": 70000,
+  "sl": 67000,
+  "position_pct": 0.2,
+  "leverage": 20,
+  "timestamp": 1713696633
 }
 ```
+
+### 🔑 Supported Parameters:
+
+| Field | Description |
+|-------|-------------|
+| `strategy_name` | Name of the strategy, must match or will be auto-registered |
+| `exchange` | Currently supports `binance` (OKX support in progress) |
+| `action` | `long` / `short` / `exit` |
+| `tp1` / `tp2` / `sl` | Take profit / stop loss levels (market exit only) |
+| `position_pct` | Capital % allocated to this signal (overrides config if provided) |
+| `leverage` | Optional: override leverage per order (or auto-use max supported) |
+| `timestamp` | UTC timestamp for slippage/delay tracking (optional) |
+
+💡 For trailing stop or dynamic TP logic, we recommend implementing directly in TradingView and sending `action: exit` when needed.
+
+---
+
+## ⚙️ Strategy Configuration (config.py Example)
+
+```python
+DEFAULT_STRATEGY_CONFIG = {
+    "capital_pct": 0.1,
+    "leverage": 10,
+    "max_slippage_pct": 0.5,
+    "enabled": True,
+    "max_position_usdt": 1000
+}
+
+STRATEGIES = {
+    "BTCUSDT_1h_MACD": {
+        "capital_pct": 0.2,
+        "leverage": 5
+    },
+    "ETHUSDT_15m_RSI": {
+        "enabled": False
+    }
+}
+
+MAX_TOTAL_POSITION_PCT = 0.7  # Max allowed position size relative to account equity
+```
+
+📌 `capital_pct`: Percentage of total account capital used per strategy
+📌 `MAX_TOTAL_POSITION_PCT`: Max total risk exposure across all strategies (e.g. 0.7 = 70%)
+📌 If webhook includes `position_pct`, it overrides the config’s `capital_pct`
+📌 If a new order exceeds the max portfolio threshold, it will be logged and skipped
+
+---
+
+## 📊 Dashboard Performance Visualization
+
+```bash
+bash start_dashboard.sh
+```
+
+📍 Opens by default at: `http://<your VPS IP>:8501`
+
+### Modules:
+
+- 🧾 Capital Allocation Charts (Pie / Bar)
+- 📋 Recent Trades Log (TP / SL / PnL% / Duration)
+- 📈 Strategy Performance: Sharpe / Sortino / Win Rate / RR / Streaks
+- 📉 Portfolio PnL Trends and Drawdown
+- 📆 Monthly Profit & Loss Overview
+- 🧮 Account Status: Exposure / Available Capital / Over-limit Warning ✅
 
 ---
 
 ## 📁 Project Structure
 
-| File/Folder | Description |
-|-------------|-------------|
-| `main.py` | Webhook endpoint & strategy dispatcher |
-| `config.py` | Dynamic config loader and strategy registration |
-| `order_manager.py` | Handles risk, slippage, execution, logging |
-| `logger.py` | Error and trade logger |
-| `monitor.py` | Monitor slippage & open positions |
-| `performance_tracker.py` | Tracks entry/exit & PnL to CSV |
-| `start_no_sudo.sh` | Start script for non-sudo VPS |
-| `install_no_sudo.sh` | Python 3.9 + venv + pip installer |
-| `stop.sh / status.sh / update.sh` | Bot lifecycle management scripts |
-| `.env.template` | Example env file for sensitive keys |
-| `log/` | Logs and CSV export folder |
+```
+📦 binance-tradingview-webhook-bot-multi-strategies
+├── main.py                 # Webhook receiver
+├── order_manager.py        # Entry/exit order logic
+├── binance_future.py       # Binance API client (supports limit / GTC)
+├── config.py               # Strategy configurations
+├── performance_tracker.py  # Trade logs & analytics
+├── position_tracker.py     # Multi-strategy position tracking
+├── monitor.py              # API monitor for live strategy info
+├── dashboard.py            # Streamlit visualization module
+├── util.py                 # Utility functions
+├── requirements.txt
+├── .env.template           # API key environment sample
+├── log/                    # Trade logs, error reports
+├── start.sh / stop.sh / restart.sh
+├── start_dashboard.sh / stop_dashboard.sh
+├── update.sh / install_no_sudo.sh
+```
 
 ---
 
-## 🧩 Useful Command Set
+## 🧪 Testing Flow
 
-| Command | Description |
-|---------|-------------|
-| `bash install_no_sudo.sh` | Compile Python + set up venv |
-| `bash start_no_sudo.sh` | Start bot in background |
-| `bash stop.sh` | Stop the running bot |
-| `bash status.sh` | Check if bot is running |
-| `bash update.sh` | Pull latest from GitHub and restart bot |
-| `tail -f log/bot.log` | View live bot logs |
+1. Send test webhook from TradingView
+2. Check terminal and log/bot.log for any errors
+3. Use `/monitor` API to validate registration and status
+4. Check `log/performance.csv` for trade records
+5. Open dashboard to review strategy PnL and portfolio allocation
 
 ---
 
-## 📮 Future Enhancements
+## 🔮 Roadmap
 
-- ✅ Line Notify / Telegram alerting integration
-- ✅ Flask-based dashboard for monitoring PnL & positions
-- ✅ Multi-account, dynamic capital balancing module
+- 📦 Multi-exchange support: OKX / Bybit
+- ⌛ Limit orders / trailing TP
+- 📬 Daily performance push via Telegram / LINE Notify
+- 🧠 Strategy deactivation (e.g. RR below threshold)
+- 💰 Portfolio rebalancing and global capital risk control
 
 ---
 
-For questions, feature requests, or contributions — feel free to open an issue or contact the maintainer 🙌
+📬 For issues, contributions or feature requests, open an issue or contact the maintainer. Let’s build a modular trading framework together 🔧
