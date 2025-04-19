@@ -107,6 +107,7 @@ bash start_dashboard.sh
 - 📈 各策略績效：Sharpe / Sortino / 勝率 / RR 比 / 連勝數
 - 📉 總體 PnL 趨勢與最大回落分析
 - 📆 月度盈虧統計圖表
+- 🧮 **總體資金狀況：倉位佔用比例 / 可用資金 / 超過上限警示** ✅
 
 ---
 
@@ -139,7 +140,7 @@ bash start_dashboard.sh
 2. 觀察終端機與 log/bot.log 有無錯誤（例如超過最大總倉比例）
 3. 用 `/monitor` API 確認策略是否註冊與倉位狀況
 4. 查看 `log/performance.csv` 是否正確記錄績效
-5. 開啟 Dashboard 確認策略盈虧統計
+5. 開啟 Dashboard 確認策略盈虧統計與總體資金佔用情況
 
 ---
 
