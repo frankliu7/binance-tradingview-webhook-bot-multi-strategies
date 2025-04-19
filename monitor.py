@@ -2,9 +2,6 @@ from config import get_strategy_config
 from position_tracker import get_all_positions
 from binance_future import get_price, get_position
 from datetime import datetime
-from flask import Flask, jsonify
-
-app = Flask(__name__)
 
 def get_strategy_status():
     status = {}
@@ -26,15 +23,3 @@ def get_strategy_status():
             "timestamp": datetime.utcnow().isoformat()
         }
     return status
-
-@app.route("/monitor", methods=["GET"])
-def monitor_api():
-    return jsonify(get_strategy_status())
-
-def print_strategy_status():
-    from pprint import pprint
-    pprint(get_strategy_status())
-
-if __name__ == "__main__":
-    print("✅ Monitor API running at /monitor")
-    app.run(host="0.0.0.0", port=8890)
