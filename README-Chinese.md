@@ -56,6 +56,8 @@ bash restart.sh
 | `tp1` / `tp2` / `sl` | 多段止盈 / 止損（選填） |
 | `timestamp` | 訊號 UTC 時間戳，用於滑價延遲比對（選填） |
 
+💡 若策略需實作「追蹤止盈」，建議直接在 TradingView 策略腳本中實作後由 webhook 發送 `action: exit` 通知 bot 平倉。
+
 ---
 
 ## ⚙️ 策略設定 config.py 範例
@@ -80,6 +82,7 @@ STRATEGIES = {
 }
 ```
 
+- `capital_pct`：表示佔整體帳戶資金的百分比（例如 0.1 即為 10%）
 - 可設定各策略獨立參數，未設定的欄位使用 `DEFAULT_STRATEGY_CONFIG`
 - 新策略如未出現在 `STRATEGIES` 中，系統會**自動註冊並套用預設設定**
 
