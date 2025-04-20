@@ -1,14 +1,13 @@
 #!/bin/bash
 
-echo "🔄 更新 Trading Bot 原始碼..."
+echo "⬇️ 拉取最新 Git 程式碼..."
 git pull
 
-echo "🛑 停止交易機器人與 Dashboard..."
-./stop.sh
-./stop_dashboard.sh
+echo "📦 安裝 / 更新相依套件..."
+source venv/bin/activate
+pip install -r requirements.txt
 
-echo "✅ 重新啟動交易機器人與 Dashboard..."
-./start.sh
-./start_dashboard.sh
+echo "🔄 重啟主程式與 Dashboard..."
+bash restart.sh
 
-echo "🚀 更新與重啟完成！"
+echo "✅ 更新完成！主程式與 Dashboard 均已重啟。"
