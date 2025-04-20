@@ -1,26 +1,39 @@
-# config.py
+import os
 
-strategies = {
-    "BTC_MACD": {
-        "capital_pct": 0.1,
-        "leverage": 10,
-        "max_qty": 0.05,
-        "max_slippage_pct": 0.5
-    },
-    # 可手動新增更多策略...
-}
+# 新增從 .env 載入金鑰
+BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
+BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET")
 
-# 預設策略參數（當 strategy_name 未在上方註冊時會使用）
+# 新增支援 testnet 模式
+BINANCE_BASE_URL = "https://testnet.binancefuture.com" if os.getenv("BINANCE_MODE") == "testnet" else "https://fapi.binance.com"
+
+# ✅ 加入總倉位限制設定
+MAX_TOTAL_POSITION_PCT = 0.7
+
+# ✅ 原本的 DEFAULT_STRATEGY_CONFIG + 加入 "enabled"
 DEFAULT_STRATEGY_CONFIG = {
-    "capital_pct": 0.05,           # 預設佔用資金 5%
-    "leverage": 5,                 # 預設槓桿 5 倍
-    "max_qty": 0.03,               # 預設最大倉位
-    "max_slippage_pct": 0.5        # 預設滑價容忍 0.5%
+    "capital_pct": 0.05,
+    "leverage": 5,
+    "max_qty": 0.03,
+    "max_slippage_pct": 0.5,
+    "enabled": True
 }
 
-# ✅ 新增總體風控限制
-MAX_TOTAL_POSITION_PCT = 0.7  # 所有策略最大倉位佔帳戶總額比例（例如 0.7 為 70%）
+# ✅ STRATEGIES 改大寫符合其他檔案一致命名習慣
+STRATEGIES = {
+    "BTCUSDT_1h_MACD": {
+        "capital_pct": 0.1,
+        "leverage": 10
+    },
+    "ETHUSDT_15m_RSI": {
+        "capital_pct": 0.08,
+        "enabled": False
+    }
+}
 
-# ✅ 提供統一的查詢方式
-def get_strategy_config(name):
-    return strategies.get(name, DEFAULT_STRATEGY_CONFIG.copy())
+# ✅ 改用 dict.update() 支援 fallback
+def get_strategy_config(name: str):
+    cfg = STRATEGIES.get(name, {})
+    final = DEFAULT_STRATEGY_CONFIG.copy()
+    final.update(cfg)
+    return final
