@@ -124,3 +124,16 @@ binance-tradingview-webhook-bot-multi-strategies/
 5. 📁 模組狀態檢查：顯示 config / logger / API / webhook 模組是否啟動、異常檢測紀錄
 6. 🧪 滑價與延遲監測：顯示最近 10 策略 webhook 滑價與 lag 秒數分佈
 
+📊 Dashboard.py 強化功能說明
+
+Dashboard.py 除了原有的績效報表分析（Plotly 視覺化）外，v1.4 增強版將加入下列模組，全面顯示交易機器人狀況：
+
+1. 📈 策略績效視覺化：TP/SL 績效、Sharpe、Sortino、PnL%、勝率等
+2. 📊 滑價與延遲統計圖表：來自 performance.csv，自動分析近期 webhook 滑價與 Lag 秒數
+3. 📡 實時倉位顯示：透過 position_tracker 統一顯示策略倉位與方向
+4. 📦 Binance 倉位統計：API 取得 long / short 倉金與未實現損益（unrealized PnL）
+5. ⚙️ 設定總覽：顯示 .env 與 strategy_config 設定（策略名稱、資金配置、是否啟用）
+6. 🧮 倉位資金狀態：計算總倉比 / 剩餘可用資金（MAX_TOTAL_POSITION_USDT - current）
+7. ✅ 模組健康檢查：確認所有檔案是否存在（log/performance.csv, config.py, monitor.py...）
+8. 🧪 測試工具區塊：模擬 webhook 傳送 / 滑價計算 / .env 更新按鈕（預留）
+
