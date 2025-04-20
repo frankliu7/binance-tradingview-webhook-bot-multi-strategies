@@ -1,12 +1,8 @@
 #!/bin/bash
 
-echo "🛑 正在停止交易機器人..."
+echo "🛑 停止 webhook 主程式..."
 
-PID=$(pgrep -f "python main.py")
+# 抓出 main.py 對應的 PID 並 kill
+ps aux | grep '[p]ython3 main.py' | awk '{print $2}' | xargs -r kill
 
-if [ -z "$PID" ]; then
-  echo "⚠️ 找不到正在運行的 bot。無需停止。"
-else
-  kill $PID
-  echo "✅ 已停止 bot (PID: $PID)"
-fi
+echo "✅ 已停止 main.py"
