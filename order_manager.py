@@ -1,61 +1,67 @@
-import time
-from decimal import Decimal
-from config import get_strategy_config, MAX_TOTAL_POSITION_PCT
-from binance_future import BinanceFutureHttpClient
-from performance_tracker import record_trade
-from util import get_slippage_pct
+import datetime
+import binance_future
+from config import get_strategy_params
+from position_tracker import get_binance_position_summary
 
-client = BinanceFutureHttpClient()
+def log(msg):
+    print(msg)
+    with open("order.log", "a") as f:
+        f.write(f"{msg}\n")
 
-def handle_order(payload):
-    symbol = payload.get("symbol")
-    strategy = payload.get("strategy_name")
-    action = payload.get("action")
-    signal_price = float(payload.get("price"))
-    ts = int(payload.get("timestamp", time.time()))
-    
-    # 支援 TradingView 傳入 position_pct 覆寫 config
-    config = get_strategy_config(strategy)
-    if "position_pct" in payload:
-        config["capital_pct"] = float(payload["position_pct"])
+def execute_order(data: dict):
+    strategy_name = data.get("strategy_name")
+    symbol = data.get("symbol")
+    action = data.get("action")  # "buy" / "sell"
+    qty = float(data.get("qty", 0))
 
-    # 設定槓桿（若需要）
-    max_leverage = client.get_max_leverage(symbol)
-    if max_leverage:
-        client.set_leverage(symbol, max_leverage)
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    prefix = f"[{now}] [strategy: {strategy_name}]"
 
-    # 計算下單數量
-    acct_code, acct_info = client.get_account_info()
-    usdt_balance = float(acct_info["totalWalletBalance"])
-    capital = usdt_balance * config["capital_pct"] * config["leverage"]
-    qty = round(capital / signal_price, 3)
+    # 基本欄位檢查
+    if not all([strategy_name, symbol, action, qty]):
+        msg = f"{prefix} ❌ 缺少必要欄位，忽略執行"
+        log(msg)
+        return {"status": "error", "reason": "missing parameters"}
 
-    # 滑價檢查
-    code, price_data = client.get_latest_price(symbol)
-    if code != 200:
-        return
-    market_price = float(price_data["price"])
-    slip_pct = get_slippage_pct(signal_price, market_price)
-    if slip_pct > config["max_slippage_pct"]:
-        print(f"❌ 超過滑價上限 {slip_pct:.2f}%，忽略下單")
-        return
+    # 讀取策略設定
+    params = get_strategy_params(strategy_name)
+    if not params.get("enabled", True):
+        msg = f"{prefix} ❌ 策略未啟用（disabled），忽略"
+        log(msg)
+        return {"status": "ignored", "reason": "strategy disabled"}
 
-    # 下單邏輯
-    if action == "long":
-        client.place_market_order(symbol, "BUY", qty)
-    elif action == "short":
-        client.place_market_order(symbol, "SELL", qty)
-    elif action == "exit":
-        client.close_position(symbol, position_side="LONG")
-        client.close_position(symbol, position_side="SHORT")
+    if params.get("max_position", 0) == 0:
+        msg = f"{prefix} ⛔ max_position = 0，策略禁用"
+        log(msg)
+        return {"status": "ignored", "reason": "max_position=0"}
 
-    # 紀錄績效
-    record_trade({
-        "strategy": strategy,
-        "symbol": symbol,
-        "action": action,
-        "qty": qty,
-        "price": market_price,
-        "timestamp": ts,
-        "slippage_pct": slip_pct
-    })
+    # 倉位風控檢查
+    try:
+        pos = get_binance_position_summary()
+        if "error" in pos:
+            msg = f"{prefix} ❗ Binance 倉位資料錯誤：{pos['error']}"
+            log(msg)
+            return {"status": "error", "reason": "position fetch failed"}
+
+        current_total = pos['total_long'] + pos['total_short']
+        if current_total >= params["max_position"]:
+            msg = f"{prefix} 🚫 倉位已達上限 ({current_total:.2f} / {params['max_position']})"
+            log(msg)
+            return {"status": "ignored", "reason": "max_position exceeded"}
+    except Exception as e:
+        return {"status": "error", "reason": f"倉位檢查失敗：{e}"}
+
+    # 決定方向
+    side = "BUY" if action.lower() == "buy" else "SELL"
+
+    # 呼叫 binance 下單
+    result = binance_future.create_order(symbol, side, qty, strategy_name)
+
+    if result["status"] == "success":
+        log(f"{prefix} ✅ 下單成功：{symbol} {side} {qty}")
+    elif result["status"] == "rejected":
+        log(f"{prefix} ⛔ 下單被拒：{result.get('reason')}")
+    else:
+        log(f"{prefix} ❌ 下單失敗：{result.get('reason')}")
+
+    return result
