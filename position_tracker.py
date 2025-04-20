@@ -1,139 +1,82 @@
-import os
+from collections import defaultdict
 import time
 import hmac
 import hashlib
 import requests
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-API_KEY = os.getenv("BINANCE_API_KEY")
-API_SECRET = os.getenv("BINANCE_API_SECRET")
-BASE_URL = "https://fapi.binance.com"
+# === 本地策略倉位追蹤 ===
 
-class BinancePositionTracker:
-    def __init__(self):
-        self.api_key = API_KEY
-        self.api_secret = API_SECRET
+_position_map = defaultdict(float)
 
-    def _get_timestamp(self):
-        return int(time.time() * 1000)
+def update_position(strategy_name, action, qty):
+    qty = float(qty)
+    if action.upper() == "LONG":
+        _position_map[strategy_name] += qty
+    elif action.upper() == "SHORT":
+        _position_map[strategy_name] -= qty
+    elif action.upper() == "EXIT":
+        _position_map[strategy_name] = 0
 
-    def _sign(self, query_string):
-        return hmac.new(self.api_secret.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
+def get_position(strategy_name):
+    return _position_map[strategy_name]
 
-    def _headers(self):
-        return {"X-MBX-APIKEY": self.api_key}
+def get_all_positions():
+    return dict(_position_map)
 
-    def _signed_request(self, endpoint):
-        timestamp = self._get_timestamp()
-        query_string = f"timestamp={timestamp}"
-        signature = self._sign(query_string)
-        url = f"{BASE_URL}{endpoint}?{query_string}&signature={signature}"
+def get_long_short_ratio():
+    long_total = sum(v for v in _position_map.values() if v > 0)
+    short_total = abs(sum(v for v in _position_map.values() if v < 0))
+    total = long_total + short_total
+    if total == 0:
+        return {"long_pct": 0, "short_pct": 0}
+    return {
+        "long_pct": round(long_total / total * 100, 2),
+        "short_pct": round(short_total / total * 100, 2)
+    }
 
-        try:
-            response = requests.get(url, headers=self._headers())
-            if response.status_code != 200:
-                print(f"[BinancePositionTracker] Error: {response.status_code} - {response.text}")
-                return None
-            return response.json()
-        except Exception as e:
-            print(f"[BinancePositionTracker] Exception: {e}")
-            return None
-
-    def get_position_summary(self):
-        data = self._signed_request("/fapi/v2/account")
-        if not data:
-            return {"error": "API failure"}
-
-        positions = data.get("positions", [])
-        total_long = 0.0
-        total_short = 0.0
-        unrealized_pnl = 0.0
-
-        for pos in positions:
-            amt = float(pos.get("positionAmt", 0))
-            if amt == 0:
-                continue
-            notional = float(pos.get("notional", 0))
-            upnl = float(pos.get("unrealizedProfit", 0))
-            unrealized_pnl += upnl
-
-            if amt > 0:
-                total_long += notional
-            elif amt < 0:
-                total_short += abs(notional)
-
-        return {
-            "total_long": total_long,
-            "total_short": total_short,
-            "unrealized_pnl": unrealized_pnl,
-            "net_position": total_long - total_short,
-            "timestamp": int(time.time() * 1000)
-        }
-
-
-
-# --- Binance Futures 倉位實時統計區塊 ---
-
-import hmac
-import hashlib
-import requests
-from dotenv import load_dotenv
-
-load_dotenv()
-
-BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
-BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET")
-BINANCE_BASE_URL = "https://fapi.binance.com"
+# === Binance Futures 倉位即時查詢（總體風控用） ===
 
 def get_binance_position_summary():
-    """
-    從 Binance Futures API 即時取得倉位資訊
-    回傳 dict：包含 total_long / total_short / unrealized_pnl / net_position / timestamp
-    """
     try:
-        timestamp = int(time.time() * 1000)
-        query_string = f"timestamp={timestamp}"
-        signature = hmac.new(
-            BINANCE_API_SECRET.encode(),
-            query_string.encode(),
-            hashlib.sha256
-        ).hexdigest()
+        api_key = os.getenv("BINANCE_TEST_API_KEY") if os.getenv("USE_TESTNET", "true") == "true" else os.getenv("BINANCE_LIVE_API_KEY")
+        secret_key = os.getenv("BINANCE_TEST_API_SECRET") if os.getenv("USE_TESTNET", "true") == "true" else os.getenv("BINANCE_LIVE_API_SECRET")
+        base_url = "https://testnet.binancefuture.com" if os.getenv("USE_TESTNET", "true") == "true" else "https://fapi.binance.com"
 
-        url = f"{BINANCE_BASE_URL}/fapi/v2/account?{query_string}&signature={signature}"
-        headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
-        response = requests.get(url, headers=headers)
+        ts = int(time.time() * 1000)
+        query_string = f"timestamp={ts}"
+        signature = hmac.new(secret_key.encode(), query_string.encode(), hashlib.sha256).hexdigest()
 
-        if response.status_code != 200:
-            print(f"[Binance API Error] {response.status_code}: {response.text}")
-            return {"error": "Binance API failure"}
+        url = f"{base_url}/fapi/v2/account?{query_string}&signature={signature}"
+        headers = {"X-MBX-APIKEY": api_key}
+        resp = requests.get(url, headers=headers)
 
-        data = response.json()
+        if resp.status_code != 200:
+            return {"error": "API error", "detail": resp.text}
+
+        data = resp.json()
         positions = data.get("positions", [])
 
         total_long, total_short, unrealized_pnl = 0.0, 0.0, 0.0
 
         for pos in positions:
-            amt = float(pos.get("positionAmt", 0))
-            if amt == 0:
-                continue
-            notional = float(pos.get("notional", 0))
-            upnl = float(pos.get("unrealizedProfit", 0))
-            unrealized_pnl += upnl
+            amt = float(pos["positionAmt"])
+            notional = float(pos["notional"])
+            upnl = float(pos["unrealizedProfit"])
             if amt > 0:
                 total_long += notional
             elif amt < 0:
                 total_short += abs(notional)
+            unrealized_pnl += upnl
 
         return {
             "total_long": total_long,
             "total_short": total_short,
-            "unrealized_pnl": unrealized_pnl,
             "net_position": total_long - total_short,
-            "timestamp": timestamp
+            "unrealized_pnl": unrealized_pnl
         }
-
     except Exception as e:
-        print(f"[Binance Position Error] {e}")
         return {"error": str(e)}
