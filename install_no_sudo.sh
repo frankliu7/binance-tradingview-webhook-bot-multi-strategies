@@ -1,8 +1,8 @@
 #!/bin/bash
-echo "📦 建立虛擬環境..."
-python3 -m venv venv
+echo "📦 建立 venv..."
+/home/master/python/Python-3.9.8/bin/python3 -m venv venv
 
-echo "📦 啟動虛擬環境..."
+echo "📦 啟動 venv..."
 source venv/bin/activate
 
 echo "📦 安裝依賴模組..."
