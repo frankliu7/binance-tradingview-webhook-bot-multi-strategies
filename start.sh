@@ -1,20 +1,18 @@
 #!/bin/bash
 
-echo "🔧 建立 log 資料夾..."
-mkdir -p log
+# 進入當前目錄
+cd "$(dirname "$0")"
 
-echo "📦 建立虛擬環境（如果尚未存在）..."
-python3 -m venv venv
+# 啟動 venv（虛擬環境）
+if [ ! -d "venv" ]; then
+    echo "❌ venv not found. 請先執行 install_no_sudo.sh 來安裝環境"
+    exit 1
+fi
 
-echo "🔁 啟動虛擬環境..."
 source venv/bin/activate
 
-echo "📦 安裝依賴模組..."
-pip install --upgrade pip
-pip install -r requirements.txt
-
-echo "✅ 啟動交易機器人中..."
-echo "[ $(date) ] Starting trading bot..." >> log/startup.log
+# 啟動主程式（Webhook 接收）
+echo "🚀 啟動主程式 webhook..."
 nohup python3 main.py > log/bot.log 2>&1 &
 
-echo "🎉 啟動完成！請用 tail -f log/bot.log 查看日誌。"
+echo "✅ 主程式啟動完成！log 寫入 log/bot.log"
