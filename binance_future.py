@@ -7,23 +7,36 @@ from datetime import datetime
 from decimal import Decimal
 import json
 
-from .constant import RequestMethod, Interval, OrderSide, OrderType
+from enum import Enum
 
+class RequestMethod(Enum):
+    GET = "GET"
+    POST = "POST"
+    DELETE = "DELETE"
 
-class BinanceFutureHttpClient(object):
+class OrderSide(Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+
+class OrderType(Enum):
+    LIMIT = "LIMIT"
+    MARKET = "MARKET"
+    MAKER = "MAKER"
+    STOP = "STOP"
+
+class BinanceFutureHttpClient:
+    host = "https://fapi.binance.com"  # 預設為正式環境，config 可改 testnet
 
     def __init__(self, api_key=None, secret=None, timeout=5):
         self.key = api_key
         self.secret = secret
-        self.host = "https://fapi.binance.com"
         self.recv_window = 5000
         self.timeout = timeout
         self.order_count_lock = Lock()
         self.order_count = 1_000_000
 
     def build_parameters(self, params: dict):
-        keys = list(params.keys())
-        keys.sort()
+        keys = sorted(params.keys())
         return '&'.join([f"{key}={params[key]}" for key in keys])
 
     def request(self, req_method: RequestMethod, path: str, requery_dict=None, verify=False):
@@ -37,13 +50,10 @@ class BinanceFutureHttpClient(object):
         headers = {"X-MBX-APIKEY": self.key}
 
         response = requests.request(req_method.value, url=url, headers=headers, timeout=self.timeout)
-        if response.status_code == 200:
+        try:
             return response.status_code, response.json()
-        else:
-            try:
-                return response.status_code, json.loads(response.text)
-            except Exception as error:
-                return response.status_code, {"msg": response.text, 'error': str(error)}
+        except Exception as error:
+            return response.status_code, {"msg": response.text, 'error': str(error)}
 
     def _timestamp(self):
         return int(time.time() * 1000)
@@ -58,92 +68,19 @@ class BinanceFutureHttpClient(object):
             self.order_count += 1
             return "x-cLbi5uMH" + str(self._timestamp()) + str(self.order_count)
 
-    def place_order(self, symbol: str, order_side: OrderSide, order_type: OrderType, quantity: Decimal, price: Decimal,
-                    time_inforce="GTC", client_order_id=None, recvWindow=5000, stop_price=0):
-
-        path = '/fapi/v1/order'
-
-        if client_order_id is None:
-            client_order_id = self.get_client_order_id()
-
-        params = {
-            "symbol": symbol,
-            "side": order_side.value,
-            "type": 'LIMIT',
-            "quantity": quantity,
-            "price": price,
-            "recvWindow": recvWindow,
-            "timestamp": self._timestamp(),
-            "newClientOrderId": client_order_id
-        }
-
-        if order_type == OrderType.LIMIT:
-            params['type'] = 'LIMIT'
-            params['timeInForce'] = time_inforce
-        elif order_type == OrderType.MARKET:
-            if params.get('price', None):
-                del params['price']
-        elif order_type == OrderType.MAKER:
-            params['type'] = 'LIMIT'
-            params['timeInForce'] = "GTX"
-        elif order_type == OrderType.STOP:
-            if stop_price > 0:
-                params["stopPrice"] = stop_price
-            else:
-                raise ValueError("stopPrice must greater than 0")
-
-        return self.request(RequestMethod.POST, path=path, requery_dict=params, verify=True)
-
-    def get_order(self, symbol, client_order_id=None):
-        path = "/fapi/v1/order"
-        query_dict = {"symbol": symbol, "timestamp": self._timestamp()}
-        if client_order_id:
-            query_dict["origClientOrderId"] = client_order_id
-        return self.request(RequestMethod.GET, path, query_dict, verify=True)
-
-    def cancel_order(self, symbol, client_order_id=None):
-        path = "/fapi/v1/order"
-        params = {"symbol": symbol, "timestamp": self._timestamp()}
-        if client_order_id:
-            params["origClientOrderId"] = client_order_id
-        return self.request(RequestMethod.DELETE, path, params, verify=True)
-
-    def exchangeInfo(self):
-        path = '/fapi/v1/exchangeInfo'
-        return self.request(req_method=RequestMethod.GET, path=path)
-
-    def get_balance(self):
-        path = "/fapi/v1/balance"
-        params = {"timestamp": self._timestamp()}
-        return self.request(RequestMethod.GET, path=path, requery_dict=params, verify=True)
-
-    def get_account_info(self):
-        path = "/fapi/v1/account"
-        params = {"timestamp": self._timestamp()}
-        return self.request(RequestMethod.GET, path, params, verify=True)
+    def get_latest_price(self, symbol):
+        return self.request(RequestMethod.GET, "/fapi/v1/ticker/price", {"symbol": symbol})
 
     def get_position_info(self, symbol):
-        path = "/fapi/v2/positionRisk"
-        params = {"timestamp": self._timestamp(), "symbol": symbol}
-        return self.request(RequestMethod.GET, path, params, verify=True)
+        return self.request(RequestMethod.GET, "/fapi/v2/positionRisk", {"timestamp": self._timestamp(), "symbol": symbol}, verify=True)
 
-    # ✅ 新增：查最大槓桿
-    def get_max_leverage(self, symbol: str) -> int:
-        status, data = self.exchangeInfo()
-        if status != 200:
-            return 20  # fallback
+    def get_balance(self):
+        return self.request(RequestMethod.GET, "/fapi/v1/balance", {"timestamp": self._timestamp()}, verify=True)
 
-        for item in data.get("symbols", []):
-            if item["symbol"] == symbol:
-                try:
-                    # Binance 實際上沒標出最大槓桿，視為最高為 125
-                    return 125
-                except:
-                    break
-        return 20  # fallback 預設值
+    def get_account_info(self):
+        return self.request(RequestMethod.GET, "/fapi/v1/account", {"timestamp": self._timestamp()}, verify=True)
 
-    # ✅ 新增：設定槓桿
-    def set_leverage(self, symbol: str, leverage: int = 20):
+    def set_leverage(self, symbol, leverage):
         path = "/fapi/v1/leverage"
         params = {
             "symbol": symbol,
@@ -151,3 +88,50 @@ class BinanceFutureHttpClient(object):
             "timestamp": self._timestamp()
         }
         return self.request(RequestMethod.POST, path, requery_dict=params, verify=True)
+
+    def get_max_leverage(self, symbol):
+        code, data = self.request(RequestMethod.GET, "/fapi/v1/exchangeInfo")
+        if code != 200:
+            return None
+        for s in data["symbols"]:
+            if s["symbol"] == symbol:
+                for f in s["filters"]:
+                    if f["filterType"] == "LEVERAGE":
+                        return int(f["maxLeverage"])
+        return None
+
+    def place_market_order(self, symbol: str, side: str, quantity: float):
+        path = "/fapi/v1/order"
+        params = {
+            "symbol": symbol,
+            "side": side,
+            "type": "MARKET",
+            "quantity": quantity,
+            "timestamp": self._timestamp(),
+            "newClientOrderId": self.get_client_order_id()
+        }
+        return self.request(RequestMethod.POST, path, requery_dict=params, verify=True)
+
+    def close_position(self, symbol: str, position_side: str):
+        path = "/fapi/v1/order"
+        side = "SELL" if position_side == "LONG" else "BUY"
+        qty = self._get_position_qty(symbol)
+        if qty == 0:
+            return 400, {"msg": "No open position to close."}
+        params = {
+            "symbol": symbol,
+            "side": side,
+            "type": "MARKET",
+            "quantity": qty,
+            "timestamp": self._timestamp(),
+            "reduceOnly": True
+        }
+        return self.request(RequestMethod.POST, path, requery_dict=params, verify=True)
+
+    def _get_position_qty(self, symbol: str):
+        code, data = self.get_position_info(symbol)
+        if code == 200:
+            for pos in data:
+                if pos["symbol"] == symbol and float(pos["positionAmt"]) != 0:
+                    return abs(float(pos["positionAmt"]))
+        return 0
