@@ -1,43 +1,42 @@
-# config.py
+# ✅ config.py（已優化，參數來自 .env）
+
 import os
 from dotenv import load_dotenv
 
+# 載入 .env 檔
 load_dotenv()
 
-# ✅ 來自 .env 的模式參數
-BINANCE_MODE = os.getenv("BINANCE_MODE", "live")
-PORT = int(os.getenv("PORT", 8888))
-DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", 8501))
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+# ✅ 讀取環境變數：選擇 API 金鑰來源
+USE_TESTNET = os.getenv("USE_TESTNET", "true").lower() == "true"
 
-# ✅ 全體風控設定
-MAX_TOTAL_POSITION_PCT = float(os.getenv("MAX_TOTAL_POSITION_PCT", 0.7))  # 所有策略最大倉位佔帳戶總額比例
+API_KEY = os.getenv("BINANCE_TEST_API_KEY") if USE_TESTNET else os.getenv("BINANCE_LIVE_API_KEY")
+API_SECRET = os.getenv("BINANCE_TEST_API_SECRET") if USE_TESTNET else os.getenv("BINANCE_LIVE_API_SECRET")
+PASSPHRASE = os.getenv("PASSPHRASE", "changeme")
 
-# ✅ 預設策略參數（用於自動註冊時）
+# ✅ 全域風控限制（來自 .env 或預設）
+MAX_TOTAL_POSITION_PCT = float(os.getenv("MAX_TOTAL_POSITION_PCT", 0.7))
+
+# ✅ 預設策略參數
 DEFAULT_STRATEGY_CONFIG = {
-    "capital_pct": 0.05,           # 預設佔用資金 5%
-    "leverage": 5,                 # 預設槓桿 5 倍（實際下單時會查幣安最大）
-    "max_qty": 0.03,               # 預設最大倉位
-    "max_slippage_pct": 0.5        # 預設滑價容忍 0.5%
+    "capital_pct": float(os.getenv("DEFAULT_CAPITAL_PCT", 0.05)),
+    "leverage": int(os.getenv("DEFAULT_LEVERAGE", 5)),
+    "max_qty": float(os.getenv("DEFAULT_MAX_QTY", 0.03)),
+    "max_slippage_pct": float(os.getenv("DEFAULT_MAX_SLIPPAGE_PCT", 0.5)),
+    "enabled": True,
+    "max_position_usdt": float(os.getenv("DEFAULT_MAX_POSITION_USDT", 1000))
 }
 
-# ✅ 已手動註冊的策略（可選）
+# ✅ 自訂策略設定（可由外部自動產生或編輯）
 STRATEGIES = {
-    "BTC_MACD": {
-        "capital_pct": 0.2,
+    "BTCUSDT_1h_MACD": {
+        "capital_pct": 0.1,
         "leverage": 10
     },
-    "ETH_RSI": {
-        "capital_pct": 0.1,
-        "enabled": True
+    "ETHUSDT_15m_RSI": {
+        "capital_pct": 0.05,
+        "enabled": False
     }
 }
 
 def get_strategy_config(name):
     return STRATEGIES.get(name, DEFAULT_STRATEGY_CONFIG.copy())
-
-# ✅ 若啟用模擬環境，自動切換 binance host
-from binance_future import BinanceFutureHttpClient
-
-if BINANCE_MODE == "testnet":
-    BinanceFutureHttpClient.host = "https://testnet.binancefuture.com"
