@@ -8,3 +8,5 @@ echo "▶️ 啟動 Dashboard..."
 nohup streamlit run dashboard.py --server.port=8501 --server.address=0.0.0.0 > log/dashboard.log 2>&1 &
 
 echo "✅ 主程式與 Dashboard 均已啟動"
+echo "🛡️ 啟動 Watchdog 偵測 .env / strategy_config.json ..."
+nohup python3 watcher.py > log/watcher.log 2>&1 &
