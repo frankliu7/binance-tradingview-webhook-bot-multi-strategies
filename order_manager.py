@@ -1,83 +1,61 @@
+import time
 from decimal import Decimal
 from config import get_strategy_config, MAX_TOTAL_POSITION_PCT
 from binance_future import BinanceFutureHttpClient
 from performance_tracker import record_trade
-from util import get_total_balance, get_open_position_value
-import os
+from util import get_slippage_pct
 
-binance_client = BinanceFutureHttpClient(
-    api_key=os.getenv("BINANCE_API_KEY"),
-    secret=os.getenv("BINANCE_API_SECRET")
-)
+client = BinanceFutureHttpClient()
 
-def handle_order(data):
-    strategy_name = data.get("strategy_name")
-    action = data.get("action", "").upper()
-    symbol = data.get("symbol", "BTCUSDT")
-    signal_price = Decimal(str(data.get("price", "0")))
-    timestamp = data.get("timestamp", None)
+def handle_order(payload):
+    symbol = payload.get("symbol")
+    strategy = payload.get("strategy_name")
+    action = payload.get("action")
+    signal_price = float(payload.get("price"))
+    ts = int(payload.get("timestamp", time.time()))
+    
+    # 支援 TradingView 傳入 position_pct 覆寫 config
+    config = get_strategy_config(strategy)
+    if "position_pct" in payload:
+        config["capital_pct"] = float(payload["position_pct"])
 
-    # 取得策略設定（如無則 fallback）
-    config = get_strategy_config(strategy_name)
-    capital_pct = Decimal(str(config["capital_pct"]))
-    leverage = Decimal(str(data.get("leverage", config["leverage"])))
-    max_qty = Decimal(str(config.get("max_qty", 0.1)))
-    max_slippage_pct = Decimal(str(config.get("max_slippage_pct", 0.5)))
+    # 設定槓桿（若需要）
+    max_leverage = client.get_max_leverage(symbol)
+    if max_leverage:
+        client.set_leverage(symbol, max_leverage)
 
-    # 取得帳戶總資金與目前持倉
-    total_balance = get_total_balance(binance_client)
-    notional_now = get_open_position_value(binance_client, symbol)
-    max_allowed = total_balance * Decimal(str(MAX_TOTAL_POSITION_PCT))
+    # 計算下單數量
+    acct_code, acct_info = client.get_account_info()
+    usdt_balance = float(acct_info["totalWalletBalance"])
+    capital = usdt_balance * config["capital_pct"] * config["leverage"]
+    qty = round(capital / signal_price, 3)
 
-    # 預估下單持倉金額
-    order_notional = total_balance * capital_pct * leverage
-
-    if notional_now + order_notional > max_allowed:
-        print(f"[❌ 超過總倉上限] 拒絕策略 {strategy_name} 下單, 欲下倉位: {order_notional}, 已佔用: {notional_now}, 上限: {max_allowed}")
+    # 滑價檢查
+    code, price_data = client.get_latest_price(symbol)
+    if code != 200:
+        return
+    market_price = float(price_data["price"])
+    slip_pct = get_slippage_pct(signal_price, market_price)
+    if slip_pct > config["max_slippage_pct"]:
+        print(f"❌ 超過滑價上限 {slip_pct:.2f}%，忽略下單")
         return
 
-    # 計算下單數量（幣種）
-    status, ticker = binance_client.get_ticker(symbol)
-    mark_price = Decimal(ticker["askPrice"]) if status == 200 else signal_price
-    quantity = (order_notional / mark_price).quantize(Decimal("0.0001"))
+    # 下單邏輯
+    if action == "long":
+        client.place_market_order(symbol, "BUY", qty)
+    elif action == "short":
+        client.place_market_order(symbol, "SELL", qty)
+    elif action == "exit":
+        client.close_position(symbol, position_side="LONG")
+        client.close_position(symbol, position_side="SHORT")
 
-    if quantity > max_qty:
-        quantity = max_qty
-
-    # 檢查滑價
-    slippage = abs(mark_price - signal_price) / signal_price * 100
-    if slippage > max_slippage_pct:
-        print(f"[❌ 滑價過高] 策略 {strategy_name} 滑價 {slippage:.2f}% 超過上限 {max_slippage_pct}%")
-        return
-
-    # ✅ 設定幣安槓桿倍率（使用 webhook 或自動查詢）
-    leverage_int = int(leverage)
-    if "leverage" not in data:
-        leverage_int = binance_client.get_max_leverage(symbol)
-    binance_client.set_leverage(symbol, leverage_int)
-
-    # ✅ 市價單方向
-    side = "BUY" if action == "LONG" else "SELL"
-    print(f"[📥 下單] 策略: {strategy_name}, 動作: {action}, 數量: {quantity}, 價格: {mark_price}, 槓桿: {leverage_int}x")
-
-    # ⛳ 下市價單
-    status, order = binance_client.place_order(
-        symbol=symbol,
-        order_side=side,
-        order_type="MARKET",
-        quantity=quantity,
-        price=mark_price  # 對市價單會自動忽略
-    )
-
-    if status == 200:
-        record_trade(
-            strategy_name=strategy_name,
-            symbol=symbol,
-            side=side,
-            price=float(mark_price),
-            qty=float(quantity),
-            timestamp=timestamp,
-            is_entry=True
-        )
-    else:
-        print(f"[❌ 下單失敗] 策略: {strategy_name}, 錯誤: {order}")
+    # 紀錄績效
+    record_trade({
+        "strategy": strategy,
+        "symbol": symbol,
+        "action": action,
+        "qty": qty,
+        "price": market_price,
+        "timestamp": ts,
+        "slippage_pct": slip_pct
+    })
