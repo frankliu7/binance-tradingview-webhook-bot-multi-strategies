@@ -1,67 +1,85 @@
-import datetime
-import binance_future
-from config import get_strategy_params
+import time
+from decimal import Decimal
+from config import get_strategy_params, MAX_TOTAL_POSITION_USDT
+from binance_future import BinanceFutureHttpClient
+from performance_tracker import record_trade
+from util import get_slippage_pct
 from position_tracker import get_binance_position_summary
+from logger import log_info, log_warn, log_error
 
-def log(msg):
-    print(msg)
-    with open("order.log", "a") as f:
-        f.write(f"{msg}\n")
+client = BinanceFutureHttpClient()
 
-def execute_order(data: dict):
-    strategy_name = data.get("strategy_name")
-    symbol = data.get("symbol")
-    action = data.get("action")  # "buy" / "sell"
-    qty = float(data.get("qty", 0))
+def handle_order(payload):
+    symbol = payload.get("symbol")
+    strategy = payload.get("strategy_name")
+    action = payload.get("action")
+    signal_price = float(payload.get("price", 0))
+    ts = int(payload.get("timestamp", time.time()))
 
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    prefix = f"[{now}] [strategy: {strategy_name}]"
+    log_info(f"🚀 開始處理策略：{strategy} / {symbol} / {action}")
 
-    # 基本欄位檢查
-    if not all([strategy_name, symbol, action, qty]):
-        msg = f"{prefix} ❌ 缺少必要欄位，忽略執行"
-        log(msg)
-        return {"status": "error", "reason": "missing parameters"}
-
-    # 讀取策略設定
-    params = get_strategy_params(strategy_name)
-    if not params.get("enabled", True):
-        msg = f"{prefix} ❌ 策略未啟用（disabled），忽略"
-        log(msg)
+    config = get_strategy_params(strategy)
+    if not config.get("enabled", True):
+        log_warn(f"策略 {strategy} 已停用，略過下單")
         return {"status": "ignored", "reason": "strategy disabled"}
 
-    if params.get("max_position", 0) == 0:
-        msg = f"{prefix} ⛔ max_position = 0，策略禁用"
-        log(msg)
-        return {"status": "ignored", "reason": "max_position=0"}
+    # 套用 webhook 的資金配置（如有）
+    capital_pct = float(payload.get("position_pct", config["capital_pct"]))
+    leverage = int(payload.get("leverage", config["leverage"]))
+    max_slippage = float(config.get("max_slippage_pct", 0.5))
 
-    # 倉位風控檢查
-    try:
-        pos = get_binance_position_summary()
-        if "error" in pos:
-            msg = f"{prefix} ❗ Binance 倉位資料錯誤：{pos['error']}"
-            log(msg)
-            return {"status": "error", "reason": "position fetch failed"}
+    # 設定最大槓桿
+    max_leverage = client.get_max_leverage(symbol)
+    if max_leverage:
+        leverage = min(leverage, max_leverage)
+        client.set_leverage(symbol, leverage)
 
-        current_total = pos['total_long'] + pos['total_short']
-        if current_total >= params["max_position"]:
-            msg = f"{prefix} 🚫 倉位已達上限 ({current_total:.2f} / {params['max_position']})"
-            log(msg)
-            return {"status": "ignored", "reason": "max_position exceeded"}
-    except Exception as e:
-        return {"status": "error", "reason": f"倉位檢查失敗：{e}"}
+    # 查詢資金與倉位限制
+    acct_code, acct_info = client.get_account_info()
+    usdt_balance = float(acct_info["totalWalletBalance"])
+    capital = usdt_balance * capital_pct * leverage
+    qty = round(capital / signal_price, 3)
 
-    # 決定方向
-    side = "BUY" if action.lower() == "buy" else "SELL"
+    # 倉位限制檢查
+    total_pos = get_binance_position_summary()
+    total_used = total_pos.get("total_long", 0) + total_pos.get("total_short", 0)
+    if total_used + capital > MAX_TOTAL_POSITION_USDT:
+        log_warn(f"⛔ 倉位已滿 {total_used:.0f} + {capital:.0f} > 限制 {MAX_TOTAL_POSITION_USDT}")
+        return {"status": "ignored", "reason": "max total position exceeded"}
 
-    # 呼叫 binance 下單
-    result = binance_future.create_order(symbol, side, qty, strategy_name)
+    # 滑價比對
+    code, price_data = client.get_latest_price(symbol)
+    if code != 200:
+        return {"status": "error", "reason": "failed to fetch market price"}
+    market_price = float(price_data["price"])
+    slip_pct = get_slippage_pct(signal_price, market_price)
+    if slip_pct > max_slippage:
+        log_warn(f"❌ 超過滑價上限 {slip_pct:.2f}% > {max_slippage}%")
+        return {"status": "ignored", "reason": "slippage too high"}
 
-    if result["status"] == "success":
-        log(f"{prefix} ✅ 下單成功：{symbol} {side} {qty}")
-    elif result["status"] == "rejected":
-        log(f"{prefix} ⛔ 下單被拒：{result.get('reason')}")
+    # 動作處理
+    if action == "long":
+        client.place_market_order(symbol, "BUY", qty)
+    elif action == "short":
+        client.place_market_order(symbol, "SELL", qty)
+    elif action == "exit":
+        client.close_position(symbol, position_side="LONG")
+        client.close_position(symbol, position_side="SHORT")
     else:
-        log(f"{prefix} ❌ 下單失敗：{result.get('reason')}")
+        return {"status": "ignored", "reason": "invalid action"}
 
-    return result
+    # 紀錄績效
+    delay_sec = int(time.time()) - ts
+    record_trade({
+        "strategy": strategy,
+        "symbol": symbol,
+        "action": action,
+        "qty": qty,
+        "price": market_price,
+        "timestamp": ts,
+        "slippage_pct": slip_pct,
+        "delay_sec": delay_sec
+    })
+
+    log_info(f"✅ 下單成功：{symbol} @ {market_price:.2f} | qty={qty} | slippage={slip_pct:.2f}%")
+    return {"status": "success", "symbol": symbol, "price": market_price, "qty": qty}
