@@ -64,34 +64,51 @@ bash restart.sh
 
 ---
 
-## ⚙️ 策略設定 config.py 範例
+## ⚙️ 策略設定 config.py（來自 .env 設定）
 
-```python
-DEFAULT_STRATEGY_CONFIG = {
-    "capital_pct": 0.1,
-    "leverage": 10,
-    "max_slippage_pct": 0.5,
-    "enabled": True,
-    "max_position_usdt": 1000
-}
+使用 `.env` 設定環境變數與預設策略參數。
 
-STRATEGIES = {
-    "BTCUSDT_1h_MACD": {
-        "capital_pct": 0.2,
-        "leverage": 5
-    },
-    "ETHUSDT_15m_RSI": {
-        "enabled": False
-    }
-}
+### ✅ `.env` 關鍵欄位
 
-MAX_TOTAL_POSITION_PCT = 0.7  # 所有策略最大可用資金總和佔帳戶總額比例
+```env
+# 切換實盤/測試網（true=使用測試網）
+USE_TESTNET=true
+
+# 測試網 API 金鑰
+BINANCE_TEST_API_KEY=xxx
+BINANCE_TEST_API_SECRET=xxx
+
+# 實盤 API 金鑰
+BINANCE_LIVE_API_KEY=xxx
+BINANCE_LIVE_API_SECRET=xxx
+
+# Webhook 密碼驗證
+PASSPHRASE=你的密碼
+
+# 全域總倉控管
+MAX_TOTAL_POSITION_PCT=0.7
+
+# 預設策略設定
+DEFAULT_CAPITAL_PCT=0.05
+DEFAULT_LEVERAGE=5
+DEFAULT_MAX_QTY=0.03
+DEFAULT_MAX_SLIPPAGE_PCT=0.5
+DEFAULT_MAX_POSITION_USDT=1000
 ```
 
-📌 `capital_pct`：表示佔整體帳戶資金的百分比（例如 0.1 即為 10%）
-📌 `MAX_TOTAL_POSITION_PCT`：總體風控限制（如 0.7 = 所有倉位總和不能超過 70%）
-📌 webhook 中若傳入 `position_pct`，將覆蓋 config 中 `capital_pct` 值
-📌 當即將執行策略導致總倉超標時，系統將記錄錯誤並忽略該 webhook，下單失敗但不影響其他策略正常運作
+### ✅ config.py 範例設定（由 .env 控制）
+
+```python
+STRATEGIES = {
+  "BTCUSDT_1h_MACD": {
+    "capital_pct": 0.1,
+    "leverage": 10
+  },
+  "ETHUSDT_15m_RSI": {
+    "enabled": False
+  }
+}
+```
 
 ---
 
@@ -111,6 +128,9 @@ bash start_dashboard.sh
 - 📉 總體 PnL 趨勢與最大回落分析
 - 📆 月度盈虧統計圖表
 - 🧮 總體資金狀況：倉位佔用比例 / 可用資金 / 超過上限警示 ✅
+- 🎯 每策略最大槓桿 / 實際倉位 / 使用者配置一覽
+- ⚙️ `.env` 設定與 config 組態視覺化
+- 🧪 滑價測試 / 模擬 webhook 測試器
 
 ---
 
@@ -120,15 +140,15 @@ bash start_dashboard.sh
 📦 binance-tradingview-webhook-bot-multi-strategies
 ├── main.py                 # Webhook 接收入口
 ├── order_manager.py        # 處理進出場策略邏輯
-├── binance_future.py       # Binance 下單模組（支援限價 / timeInForce）
-├── config.py               # 策略設定檔
+├── binance_future.py       # Binance 下單模組（支援限價 / 槓桿自動設置）
+├── config.py               # 策略設定檔（.env 驅動）
 ├── performance_tracker.py  # 交易紀錄與績效分析
 ├── position_tracker.py     # 倉位追蹤（多策略）
 ├── monitor.py              # API 顯示策略狀態
 ├── dashboard.py            # Streamlit Dashboard 報表
 ├── util.py                 # 公用方法（滑價計算等）
 ├── requirements.txt
-├── .env.template           # API 金鑰模板
+├── .env.template           # API 金鑰與參數範例
 ├── log/                    # 包含 performance.csv 與錯誤日誌
 ├── start.sh / stop.sh / restart.sh
 ├── start_dashboard.sh / stop_dashboard.sh
@@ -141,8 +161,8 @@ bash start_dashboard.sh
 
 1. 在 TradingView 發送 webhook 測試訊號
 2. 觀察終端機與 log/bot.log 有無錯誤（例如超過最大總倉比例）
-3. 用 /monitor API 確認策略是否註冊與倉位狀況
-4. 查看 log/performance.csv 是否正確記錄績效
+3. 用 `/monitor` API 確認策略是否註冊與倉位狀況
+4. 查看 `log/performance.csv` 是否正確記錄績效
 5. 開啟 Dashboard 確認策略盈虧統計與總體資金佔用情況
 
 ---
