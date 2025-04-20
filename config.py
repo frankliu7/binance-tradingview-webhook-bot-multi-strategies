@@ -35,3 +35,9 @@ STRATEGIES = {
 
 def get_strategy_config(name):
     return STRATEGIES.get(name, DEFAULT_STRATEGY_CONFIG.copy())
+
+# ✅ 若啟用模擬環境，自動切換 binance host
+from binance_future import BinanceFutureHttpClient
+
+if BINANCE_MODE == "testnet":
+    BinanceFutureHttpClient.host = "https://testnet.binancefuture.com"
