@@ -5,3 +5,6 @@ pandas
 streamlit
 plotly
 python-dotenv
+
+
+watchdog
