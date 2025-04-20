@@ -1,29 +1,29 @@
-# Binance TradingView Webhook Bot (Multi-Strategy Modular Version)
+# Binance TradingView Webhook Bot (Modular Multi-Strategy)
 
-This project is an automated crypto trading bot designed to receive TradingView webhook alerts from multiple strategies and automatically execute orders via the Binance API. Features include multi-strategy management, capital allocation, TP/SL handling, slippage control, and a dashboard for performance analysis.
+This project is an automated trading bot that receives webhook signals from multiple TradingView strategies and places real-time orders via the Binance API. It supports modular strategy management, capital allocation, TP/SL control, slippage checking, and performance dashboard.
 
 ---
 
-## 🚀 Quick Start (No sudo required for VPS)
+## 🚀 Quick Start (No `sudo` Needed, VPS-Friendly)
 
 ```bash
-# ⬇️ First-time Installation
+# ⬇️ First-time installation
 bash install_no_sudo.sh
 
-# ▶️ Start Main Bot (Webhook Server)
+# ▶️ Start the main bot (Webhook Server)
 bash start.sh
 
-# ▶️ Start Performance Dashboard
+# ▶️ Start the Dashboard
 bash start_dashboard.sh
 
-# ❌ Stop Bot / Dashboard
+# ❌ Stop main / dashboard
 bash stop.sh
 bash stop_dashboard.sh
 
-# 🔄 Update Codebase + Restart Services
+# 🔄 Update repo + restart services
 bash update.sh
 
-# ♻️ Manual Restart (without pulling git)
+# ♻️ Manual restart (without git pull)
 bash restart.sh
 ```
 
@@ -33,7 +33,7 @@ bash restart.sh
 
 ```json
 {
-  "passphrase": "your_passphrase",
+  "passphrase": "your_secret",
   "strategy_name": "BTCUSDT_1h_MACD",
   "symbol": "BTCUSDT",
   "exchange": "binance",
@@ -48,69 +48,87 @@ bash restart.sh
 }
 ```
 
-### 🔑 Supported Parameters:
+### 🔑 Supported Parameters
 
 | Field | Description |
 |-------|-------------|
-| `strategy_name` | Name of the strategy, must match or will be auto-registered |
-| `exchange` | Currently supports `binance` (OKX support in progress) |
+| `strategy_name` | Strategy name; matches config or auto-registers |
+| `exchange` | Currently supports `binance` (OKX coming soon) |
 | `action` | `long` / `short` / `exit` |
-| `tp1` / `tp2` / `sl` | Take profit / stop loss levels (market exit only) |
-| `position_pct` | Capital % allocated to this signal (overrides config if provided) |
-| `leverage` | Optional: override leverage per order (or auto-use max supported) |
-| `timestamp` | UTC timestamp for slippage/delay tracking (optional) |
+| `tp1`, `tp2`, `sl` | Optional TP/SL levels; always market exit |
+| `position_pct` | Position size as % of total capital (overrides config if provided) |
+| `leverage` | ✅ Per-trade leverage override (fallbacks to config or fetches max) |
+| `timestamp` | Optional UTC time for slippage latency check |
 
-💡 For trailing stop or dynamic TP logic, we recommend implementing directly in TradingView and sending `action: exit` when needed.
+💡 Want trailing TP or dynamic exits? Handle exit logic in TradingView and use `action: exit` to notify the bot.
 
 ---
 
-## ⚙️ Strategy Configuration (config.py Example)
+## ⚙️ Strategy Configuration via `.env` and `config.py`
 
-```python
-DEFAULT_STRATEGY_CONFIG = {
-    "capital_pct": 0.1,
-    "leverage": 10,
-    "max_slippage_pct": 0.5,
-    "enabled": True,
-    "max_position_usdt": 1000
-}
+You only need to update `.env` to set all key parameters.
 
-STRATEGIES = {
-    "BTCUSDT_1h_MACD": {
-        "capital_pct": 0.2,
-        "leverage": 5
-    },
-    "ETHUSDT_15m_RSI": {
-        "enabled": False
-    }
-}
+### ✅ Example `.env`
 
-MAX_TOTAL_POSITION_PCT = 0.7  # Max allowed position size relative to account equity
+```env
+# Switch to testnet/live
+USE_TESTNET=true
+
+# Binance API keys
+BINANCE_TEST_API_KEY=xxx
+BINANCE_TEST_API_SECRET=xxx
+BINANCE_LIVE_API_KEY=xxx
+BINANCE_LIVE_API_SECRET=xxx
+
+# Webhook passphrase
+PASSPHRASE=your_secret
+
+# Global position limit
+MAX_TOTAL_POSITION_PCT=0.7
+
+# Default strategy config
+DEFAULT_CAPITAL_PCT=0.05
+DEFAULT_LEVERAGE=5
+DEFAULT_MAX_QTY=0.03
+DEFAULT_MAX_SLIPPAGE_PCT=0.5
+DEFAULT_MAX_POSITION_USDT=1000
 ```
 
-📌 `capital_pct`: Percentage of total account capital used per strategy
-📌 `MAX_TOTAL_POSITION_PCT`: Max total risk exposure across all strategies (e.g. 0.7 = 70%)
-📌 If webhook includes `position_pct`, it overrides the config’s `capital_pct`
-📌 If a new order exceeds the max portfolio threshold, it will be logged and skipped
+### ✅ `config.py` strategy override (optional)
+
+```python
+STRATEGIES = {
+  "BTCUSDT_1h_MACD": {
+    "capital_pct": 0.1,
+    "leverage": 10
+  },
+  "ETHUSDT_15m_RSI": {
+    "enabled": False
+  }
+}
+```
 
 ---
 
-## 📊 Dashboard Performance Visualization
+## 📊 Dashboard (Performance & Risk Monitor)
 
 ```bash
 bash start_dashboard.sh
 ```
 
-📍 Opens by default at: `http://<your VPS IP>:8501`
+Open in browser: `http://<your-VPS-IP>:8501`
 
-### Modules:
+### Modules included:
 
-- 🧾 Capital Allocation Charts (Pie / Bar)
-- 📋 Recent Trades Log (TP / SL / PnL% / Duration)
-- 📈 Strategy Performance: Sharpe / Sortino / Win Rate / RR / Streaks
-- 📉 Portfolio PnL Trends and Drawdown
-- 📆 Monthly Profit & Loss Overview
-- 🧮 Account Status: Exposure / Available Capital / Over-limit Warning ✅
+- 🧾 Fund allocation (pie / bar chart)
+- 📋 Recent trades (TP / SL / PnL% / holding seconds)
+- 📈 Per-strategy metrics: Sharpe, Sortino, WinRate, RR, streaks
+- 📉 Total PnL trend and max drawdown
+- 📆 Monthly profit/loss summary
+- 🧮 Account capital overview, max limit warnings ✅
+- 🎯 Live vs max leverage per strategy
+- ⚙️ `.env` & config visualization
+- 🧪 Mock slippage calculator + webhook test tool
 
 ---
 
@@ -118,18 +136,18 @@ bash start_dashboard.sh
 
 ```
 📦 binance-tradingview-webhook-bot-multi-strategies
-├── main.py                 # Webhook receiver
-├── order_manager.py        # Entry/exit order logic
-├── binance_future.py       # Binance API client (supports limit / GTC)
-├── config.py               # Strategy configurations
-├── performance_tracker.py  # Trade logs & analytics
-├── position_tracker.py     # Multi-strategy position tracking
-├── monitor.py              # API monitor for live strategy info
-├── dashboard.py            # Streamlit visualization module
-├── util.py                 # Utility functions
+├── main.py                 # Webhook entry
+├── order_manager.py        # Strategy logic handler
+├── binance_future.py       # Binance API wrapper (market/limit/SL)
+├── config.py               # Loads .env & strategy overrides
+├── performance_tracker.py  # Trade history & performance analysis
+├── position_tracker.py     # Tracks active positions
+├── monitor.py              # Real-time API monitor
+├── dashboard.py            # Streamlit dashboard
+├── util.py                 # Helper tools (e.g., slippage calc)
 ├── requirements.txt
-├── .env.template           # API key environment sample
-├── log/                    # Trade logs, error reports
+├── .env.template           # API keys & default settings
+├── log/                    # Logs and performance.csv
 ├── start.sh / stop.sh / restart.sh
 ├── start_dashboard.sh / stop_dashboard.sh
 ├── update.sh / install_no_sudo.sh
@@ -137,24 +155,24 @@ bash start_dashboard.sh
 
 ---
 
-## 🧪 Testing Flow
+## 🧪 Testing Checklist
 
-1. Send test webhook from TradingView
-2. Check terminal and log/bot.log for any errors
-3. Use `/monitor` API to validate registration and status
-4. Check `log/performance.csv` for trade records
-5. Open dashboard to review strategy PnL and portfolio allocation
+1. Send test signal from TradingView webhook
+2. Check terminal/log/bot.log for errors (e.g. position limit exceeded)
+3. Visit `/monitor` API to confirm bot registered strategy
+4. Open `log/performance.csv` for trade records
+5. Visit Dashboard for charts, capital allocation, and metrics
 
 ---
 
-## 🔮 Roadmap
+## 🔮 Roadmap & Coming Soon
 
 - 📦 Multi-exchange support: OKX / Bybit
-- ⌛ Limit orders / trailing TP
-- 📬 Daily performance push via Telegram / LINE Notify
-- 🧠 Strategy deactivation (e.g. RR below threshold)
-- 💰 Portfolio rebalancing and global capital risk control
+- ⌛ Limit orders & trailing TP logic
+- 📬 Daily Telegram / LINE PnL reports
+- 🧠 Strategy router (auto-disable low-RR strategies)
+- 💰 Portfolio risk engine (max total exposure enforcement)
 
 ---
 
-📬 For issues, contributions or feature requests, open an issue or contact the maintainer. Let’s build a modular trading framework together 🔧
+📬 Questions? Open an Issue or contact the author to help evolve the modular trading stack 🔧
