@@ -71,3 +71,69 @@ class BinancePositionTracker:
             "net_position": total_long - total_short,
             "timestamp": int(time.time() * 1000)
         }
+
+
+
+# --- Binance Futures 倉位實時統計區塊 ---
+
+import hmac
+import hashlib
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()
+
+BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
+BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET")
+BINANCE_BASE_URL = "https://fapi.binance.com"
+
+def get_binance_position_summary():
+    """
+    從 Binance Futures API 即時取得倉位資訊
+    回傳 dict：包含 total_long / total_short / unrealized_pnl / net_position / timestamp
+    """
+    try:
+        timestamp = int(time.time() * 1000)
+        query_string = f"timestamp={timestamp}"
+        signature = hmac.new(
+            BINANCE_API_SECRET.encode(),
+            query_string.encode(),
+            hashlib.sha256
+        ).hexdigest()
+
+        url = f"{BINANCE_BASE_URL}/fapi/v2/account?{query_string}&signature={signature}"
+        headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
+        response = requests.get(url, headers=headers)
+
+        if response.status_code != 200:
+            print(f"[Binance API Error] {response.status_code}: {response.text}")
+            return {"error": "Binance API failure"}
+
+        data = response.json()
+        positions = data.get("positions", [])
+
+        total_long, total_short, unrealized_pnl = 0.0, 0.0, 0.0
+
+        for pos in positions:
+            amt = float(pos.get("positionAmt", 0))
+            if amt == 0:
+                continue
+            notional = float(pos.get("notional", 0))
+            upnl = float(pos.get("unrealizedProfit", 0))
+            unrealized_pnl += upnl
+            if amt > 0:
+                total_long += notional
+            elif amt < 0:
+                total_short += abs(notional)
+
+        return {
+            "total_long": total_long,
+            "total_short": total_short,
+            "unrealized_pnl": unrealized_pnl,
+            "net_position": total_long - total_short,
+            "timestamp": timestamp
+        }
+
+    except Exception as e:
+        print(f"[Binance Position Error] {e}")
+        return {"error": str(e)}
