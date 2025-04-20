@@ -1,38 +1,57 @@
 from flask import Flask, request, jsonify
-from binance_future import BinanceFutureHttpClient
-from config import get_strategy_config, strategies
-from order_manager import handle_order
-import logging
+from config import get_strategy_params
+import datetime
 import os
 
 app = Flask(__name__)
 
-# 建立 Binance client
-binance = BinanceFutureHttpClient(
-    api_key=os.getenv("BINANCE_API_KEY"),
-    secret=os.getenv("BINANCE_API_SECRET")
-)
-
-@app.route("/", methods=["GET"])
+@app.route('/')
 def index():
-    return "✅ Webhook Server Ready"
+    return 'Webhook server is running.'
 
-@app.route("/webhook", methods=["POST"])
+@app.route('/webhook', methods=['POST'])
 def webhook():
-    try:
-        data = request.json
-        strategy_name = data.get("strategy_name")
+    data = request.get_json()
 
-        # 自動註冊策略名稱（如尚未存在）
-        if strategy_name and strategy_name not in strategies:
-            strategies[strategy_name] = {}  # 使用 DEFAULT_STRATEGY_CONFIG
+    if not data:
+        return jsonify({"status": "error", "reason": "No JSON received"}), 400
 
-        handle_order(data, binance)
-        return jsonify({"status": "ok"})
+    strategy_name = data.get("strategy_name")
+    if not strategy_name:
+        return jsonify({"status": "error", "reason": "Missing strategy_name"}), 400
 
-    except Exception as e:
-        logging.exception("[webhook] 接收失敗")
-        return jsonify({"status": "error", "message": str(e)}), 500
+    params = get_strategy_params(strategy_name)
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8888)
+    # 被禁用或 max_position = 0 的策略
+    if not params.get("enabled", True):
+        log_event("IGNORED", strategy_name, data, reason="Strategy disabled or max_position=0")
+        return jsonify({
+            "status": "ignored",
+            "strategy": strategy_name,
+            "reason": "disabled or max_position=0"
+        }), 200
+
+    # 正常策略處理流程（示範）
+    # 可以送到 order_manager 處理下單
+    log_event("ACCEPTED", strategy_name, data)
+
+    return jsonify({
+        "status": "received",
+        "strategy": strategy_name,
+        "params": params
+    }), 200
+
+# 簡易日誌函數
+def log_event(status, strategy_name, data, reason=""):
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    msg = f"[{now}] [{status}] Strategy: {strategy_name} | Symbol: {data.get('symbol')} | Action: {data.get('action')}"
+
+    if reason:
+        msg += f" | Reason: {reason}"
+
+    print(msg)
+
+    with open("webhook.log", "a") as f:
+        f.write(msg + "\n")
+
+if __name__ == '__main__':
