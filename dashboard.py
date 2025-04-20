@@ -302,3 +302,111 @@ try:
 except Exception as e:
     st.warning(f"無法取得即時倉位資訊：{e}")
 
+
+
+
+
+
+# ✅ Trading Bot Dashboard v1.5 - 完整視覺化模組（含 webhook 測試與熱更新）
+import streamlit as st
+import pandas as pd
+import os
+import plotly.express as px
+import requests
+import json
+from dotenv import dotenv_values
+from config import get_strategy_params, MAX_TOTAL_POSITION_USDT
+
+st.set_page_config(page_title="📊 Trading Bot Dashboard", layout="wide")
+st.title("📊 Trading Strategy Dashboard (v1.5)")
+
+# ⏺️ 模擬 Webhook 發送
+st.sidebar.subheader("🧪 Webhook 測試工具")
+with st.sidebar.form("webhook_form"):
+    strategy = st.text_input("策略名稱", "BTC_1h_MACD")
+    symbol = st.text_input("幣種", "BTCUSDT")
+    action = st.selectbox("方向", ["long", "short", "exit"])
+    qty = st.number_input("數量", value=0.01)
+    price = st.number_input("價格", value=30000)
+    tp1 = st.number_input("TP1", value=31000)
+    tp2 = st.number_input("TP2", value=32000)
+    sl = st.number_input("止損", value=29000)
+    timestamp = int(pd.Timestamp.now().timestamp())
+    send = st.form_submit_button("送出 Webhook")
+    if send:
+        payload = {
+            "passphrase": dotenv_values(".env").get("PASSPHRASE"),
+            "strategy_name": strategy,
+            "symbol": symbol,
+            "action": action,
+            "qty": qty,
+            "price": price,
+            "tp1": tp1,
+            "tp2": tp2,
+            "sl": sl,
+            "timestamp": timestamp
+        }
+        resp = requests.post("http://localhost:8888/webhook", json=payload)
+        st.sidebar.write("Webhook 回傳：", resp.status_code, resp.text)
+
+# 🔁 熱更新 .env 設定
+if st.sidebar.button("♻️ 重新載入 .env"):
+    st.sidebar.success("已重新載入環境參數")
+
+# ✅ 績效報表與統計
+perf_file = "log/performance.csv"
+if os.path.exists(perf_file):
+    perf_df = pd.read_csv(perf_file)
+    perf_df['timestamp'] = pd.to_datetime(perf_df['timestamp'])
+    st.subheader("✅ 策略績效報表")
+    st.dataframe(perf_df.tail(30))
+
+    if 'slippage_pct' in perf_df.columns:
+        st.subheader("📉 滑價統計")
+        st.bar_chart(perf_df['slippage_pct'].tail(50))
+
+    if 'lag_sec' in perf_df.columns:
+        st.subheader("⏱️ 延遲時間統計")
+        st.line_chart(perf_df['lag_sec'].tail(50))
+else:
+    st.warning("⚠️ 尚未偵測到 performance.csv")
+
+# 📦 策略與 Binance 倉位追蹤
+try:
+    import position_tracker
+    st.subheader("📦 策略邏輯倉位")
+    st.json(position_tracker.get_all_positions())
+
+    st.subheader("📡 Binance 即時倉位")
+    pos = position_tracker.get_binance_position_summary()
+    st.json(pos)
+
+    total_used = pos['total_long'] + pos['total_short']
+    st.metric("🔐 倉位使用", f"{total_used:.2f} / {MAX_TOTAL_POSITION_USDT} USDT")
+except Exception as e:
+    st.error(f"無法取得倉位資料：{e}")
+
+# ⚙️ 環境與策略設定
+st.subheader("⚙️ .env 環境參數")
+env = dotenv_values(".env")
+st.json(env)
+
+st.subheader("📋 strategy_config.json 設定")
+try:
+    with open("strategy_config.json") as f:
+        strategies = json.load(f)
+    st.json(strategies)
+except:
+    st.warning("尚未建立 strategy_config.json")
+
+# 📂 模組狀態健檢
+st.subheader("🧩 模組狀態")
+modules = [
+    "config.py", "performance_tracker.py", "position_tracker.py",
+    "dashboard.py", "order_manager.py", "main.py",
+    "util.py", "log/performance.csv"
+]
+for m in modules:
+    st.write("✅" if os.path.exists(m) else "❌", m)
+
+
