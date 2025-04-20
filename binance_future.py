@@ -25,7 +25,7 @@ class OrderType(Enum):
     STOP = "STOP"
 
 class BinanceFutureHttpClient:
-    host = "https://fapi.binance.com"  # 預設為正式環境，config 可改 testnet
+    host = "https://fapi.binance.com"  # 預設為正式環境，可換成 testnet
 
     def __init__(self, api_key=None, secret=None, timeout=5):
         self.key = api_key
@@ -95,9 +95,9 @@ class BinanceFutureHttpClient:
             return None
         for s in data["symbols"]:
             if s["symbol"] == symbol:
-                for f in s.get("filters", []):
-                    if f.get("filterType") == "LEVERAGE":
-                        return int(f["maxLeverage"])
+                for filt in s.get("filters", []):
+                    if filt["filterType"] == "LEVERAGE" and "maxLeverage" in filt:
+                        return int(filt["maxLeverage"])
         return None
 
     def place_market_order(self, symbol: str, side: str, quantity: float):
@@ -107,6 +107,20 @@ class BinanceFutureHttpClient:
             "side": side,
             "type": "MARKET",
             "quantity": quantity,
+            "timestamp": self._timestamp(),
+            "newClientOrderId": self.get_client_order_id()
+        }
+        return self.request(RequestMethod.POST, path, requery_dict=params, verify=True)
+
+    def place_limit_order(self, symbol: str, side: str, quantity: float, price: float):
+        path = "/fapi/v1/order"
+        params = {
+            "symbol": symbol,
+            "side": side,
+            "type": "LIMIT",
+            "timeInForce": "GTC",
+            "quantity": quantity,
+            "price": price,
             "timestamp": self._timestamp(),
             "newClientOrderId": self.get_client_order_id()
         }
