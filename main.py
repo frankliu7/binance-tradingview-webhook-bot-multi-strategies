@@ -1,57 +1,60 @@
-from flask import Flask, request, jsonify
-from config import get_strategy_params
-import datetime
 import os
+import json
+import logging
+import time
+from flask import Flask, request, jsonify
+from dotenv import load_dotenv
+from order_manager import handle_order
+from logger import log_info, log_warn, log_error
+
+load_dotenv()
 
 app = Flask(__name__)
+WEBHOOK_PASSPHRASE = os.getenv("PASSPHRASE", "")
 
-@app.route('/')
-def index():
-    return 'Webhook server is running.'
+@app.route("/", methods=["GET"])
+def home():
+    return "✅ Bot is running."
 
-@app.route('/webhook', methods=['POST'])
+@app.route("/webhook", methods=["POST"])
 def webhook():
-    data = request.get_json()
+    try:
+        data = request.get_json()
+        now_ts = int(time.time())
 
-    if not data:
-        return jsonify({"status": "error", "reason": "No JSON received"}), 400
+        # 1️⃣ 驗證密碼
+        if data.get("passphrase") != WEBHOOK_PASSPHRASE:
+            log_warn("⛔ 拒絕：Webhook 密碼錯誤")
+            return jsonify({"code": 403, "msg": "Invalid passphrase"}), 403
 
-    strategy_name = data.get("strategy_name")
-    if not strategy_name:
-        return jsonify({"status": "error", "reason": "Missing strategy_name"}), 400
+        # 2️⃣ 驗證必要欄位
+        required_fields = ["strategy_name", "symbol", "action", "qty"]
+        for field in required_fields:
+            if field not in data:
+                log_warn(f"⛔ 拒絕：缺少欄位 {field}")
+                return jsonify({"code": 400, "msg": f"Missing field: {field}"}), 400
 
-    params = get_strategy_params(strategy_name)
+        # 3️⃣ 比對延遲（timestamp 可選）
+        if "timestamp" in data:
+            lag_sec = now_ts - int(data["timestamp"])
+            data["lag_sec"] = lag_sec
+            if lag_sec > 30:
+                log_warn(f"⚠️ Webhook 延遲過久：{lag_sec} 秒")
 
-    # 被禁用或 max_position = 0 的策略
-    if not params.get("enabled", True):
-        log_event("IGNORED", strategy_name, data, reason="Strategy disabled or max_position=0")
+        log_info(f"📩 Webhook 收到：{json.dumps(data)}")
+
+        # 4️⃣ 傳遞給 order_manager 處理邏輯
+        result = handle_order(data)
+
         return jsonify({
-            "status": "ignored",
-            "strategy": strategy_name,
-            "reason": "disabled or max_position=0"
+            "code": 200,
+            "msg": "Webhook received",
+            "result": result
         }), 200
 
-    # 正常策略處理流程（示範）
-    # 可以送到 order_manager 處理下單
-    log_event("ACCEPTED", strategy_name, data)
+    except Exception as e:
+        log_error(f"❌ Webhook 處理錯誤：{e}")
+        return jsonify({"code": 500, "msg": "Internal server error"}), 500
 
-    return jsonify({
-        "status": "received",
-        "strategy": strategy_name,
-        "params": params
-    }), 200
-
-# 簡易日誌函數
-def log_event(status, strategy_name, data, reason=""):
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    msg = f"[{now}] [{status}] Strategy: {strategy_name} | Symbol: {data.get('symbol')} | Action: {data.get('action')}"
-
-    if reason:
-        msg += f" | Reason: {reason}"
-
-    print(msg)
-
-    with open("webhook.log", "a") as f:
-        f.write(msg + "\n")
-
-if __name__ == '__main__':
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8888)
