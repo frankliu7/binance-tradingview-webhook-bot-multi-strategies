@@ -1,29 +1,42 @@
-from decimal import Decimal
-from binance_future import BinanceFutureHttpClient
-from config import strategies
-from config import get_strategy_config
-import logging
 
-# ✅ 查詢帳戶總資金（USDT）
-def get_total_balance(binance_client: BinanceFutureHttpClient) -> Decimal:
-    status, data = binance_client.get_balance()
-    if status == 200 and isinstance(data, list):
-        for item in data:
-            if item["asset"] == "USDT":
-                return Decimal(item["balance"])
-    logging.warning("[util] get_total_balance fallback to 0")
-    return Decimal("0")
+from datetime import datetime
+import time
 
-# ✅ 計算目前某個交易對倉位價值（symbol 對應倉位金額）
-def get_open_position_value(binance_client: BinanceFutureHttpClient, symbol: str) -> Decimal:
-    status, data = binance_client.get_position_info(symbol)
-    if status != 200:
-        logging.warning(f"[util] get_position_info fail: {data}")
-        return Decimal("0")
+# ✅ 計算滑價百分比
+def calc_slippage_pct(entry_price: float, actual_price: float) -> float:
+    if entry_price == 0:
+        return 0
+    return round((actual_price - entry_price) / entry_price * 100, 4)
 
-    for pos in data:
-        if pos["symbol"] == symbol:
-            notional = Decimal(pos.get("notional", "0"))
-            return abs(notional)
+# ✅ 計算滑價 tick 數
+def calc_slippage_tick(entry_price: float, actual_price: float, tick_size: float) -> float:
+    if tick_size == 0:
+        return 0
+    return round((actual_price - entry_price) / tick_size, 2)
 
-    return Decimal("0")
+# ✅ 計算 webhook 與系統時間的延遲（秒）
+def calc_lag_sec(webhook_timestamp: int) -> int:
+    now = int(time.time())
+    return now - webhook_timestamp
+
+# ✅ 統一解析 webhook payload（含欄位檢查）
+def parse_webhook(data: dict) -> dict:
+    required_fields = ["strategy_name", "passphrase", "qty", "action", "price"]
+    for field in required_fields:
+        if field not in data:
+            raise ValueError(f"缺少必要欄位: {field}")
+    return {
+        "strategy": data["strategy_name"],
+        "symbol": data.get("symbol", ""),
+        "exchange": data.get("exchange", "binance"),
+        "action": data["action"].lower(),
+        "qty": float(data["qty"]),
+        "price": float(data["price"]),
+        "tp1": float(data.get("tp1", 0)),
+        "tp2": float(data.get("tp2", 0)),
+        "sl": float(data.get("stop_loss", 0)),
+        "qty1": float(data.get("qty1", 0.5)),
+        "qty2": float(data.get("qty2", 0.5)),
+        "exit": data.get("exit", False),
+        "timestamp": int(data.get("timestamp", time.time()))
+    }
