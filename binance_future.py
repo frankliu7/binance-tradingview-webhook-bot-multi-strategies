@@ -95,9 +95,7 @@ class BinanceFutureHttpClient:
             return None
         for s in data["symbols"]:
             if s["symbol"] == symbol:
-                for f in s["filters"]:
-                    if f["filterType"] == "LEVERAGE":
-                        return int(f["maxLeverage"])
+                return int(s["leverageFilter"]["maxLeverage"])
         return None
 
     def place_market_order(self, symbol: str, side: str, quantity: float):
