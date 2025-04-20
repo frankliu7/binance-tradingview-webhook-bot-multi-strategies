@@ -1,39 +1,37 @@
+# config.py
 import os
+from dotenv import load_dotenv
 
-# 新增從 .env 載入金鑰
-BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
-BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET")
+load_dotenv()
 
-# 新增支援 testnet 模式
-BINANCE_BASE_URL = "https://testnet.binancefuture.com" if os.getenv("BINANCE_MODE") == "testnet" else "https://fapi.binance.com"
+# ✅ 來自 .env 的模式參數
+BINANCE_MODE = os.getenv("BINANCE_MODE", "live")
+PORT = int(os.getenv("PORT", 8888))
+DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", 8501))
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
-# ✅ 加入總倉位限制設定
-MAX_TOTAL_POSITION_PCT = 0.7
+# ✅ 全體風控設定
+MAX_TOTAL_POSITION_PCT = float(os.getenv("MAX_TOTAL_POSITION_PCT", 0.7))  # 所有策略最大倉位佔帳戶總額比例
 
-# ✅ 原本的 DEFAULT_STRATEGY_CONFIG + 加入 "enabled"
+# ✅ 預設策略參數（用於自動註冊時）
 DEFAULT_STRATEGY_CONFIG = {
-    "capital_pct": 0.05,
-    "leverage": 5,
-    "max_qty": 0.03,
-    "max_slippage_pct": 0.5,
-    "enabled": True
+    "capital_pct": 0.05,           # 預設佔用資金 5%
+    "leverage": 5,                 # 預設槓桿 5 倍（實際下單時會查幣安最大）
+    "max_qty": 0.03,               # 預設最大倉位
+    "max_slippage_pct": 0.5        # 預設滑價容忍 0.5%
 }
 
-# ✅ STRATEGIES 改大寫符合其他檔案一致命名習慣
+# ✅ 已手動註冊的策略（可選）
 STRATEGIES = {
-    "BTCUSDT_1h_MACD": {
-        "capital_pct": 0.1,
+    "BTC_MACD": {
+        "capital_pct": 0.2,
         "leverage": 10
     },
-    "ETHUSDT_15m_RSI": {
-        "capital_pct": 0.08,
-        "enabled": False
+    "ETH_RSI": {
+        "capital_pct": 0.1,
+        "enabled": True
     }
 }
 
-# ✅ 改用 dict.update() 支援 fallback
-def get_strategy_config(name: str):
-    cfg = STRATEGIES.get(name, {})
-    final = DEFAULT_STRATEGY_CONFIG.copy()
-    final.update(cfg)
-    return final
+def get_strategy_config(name):
+    return STRATEGIES.get(name, DEFAULT_STRATEGY_CONFIG.copy())
