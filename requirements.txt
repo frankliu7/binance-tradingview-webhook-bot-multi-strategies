@@ -1,6 +1,6 @@
 flask
 requests
-decimal
+# decimal
 pandas
 streamlit
 plotly
