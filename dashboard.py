@@ -252,3 +252,53 @@ with col_a:
     st.metric("💰 Total PnL (All Strategies)", f"{overall_pnl:.2f}%")
 with col_b:
     st.metric("📈 Portfolio Annualized Return", f"{portfolio_annualized_return:.2f}%")
+
+
+
+# ➕ 新增：strategy_config.json 策略設定總覽
+try:
+    import config
+    import json
+
+    st.subheader("📋 strategy_config.json 設定總覽")
+
+    config_data = config.load_strategy_config()
+    if config_data:
+        config_df = pd.DataFrame([
+            {
+                "策略名稱": name,
+                "啟用": "✅" if val.get("enabled", True) else "❌",
+                "資金比例": val.get("capital_fraction", 0),
+                "最大倉位": val.get("max_position", 0),
+                "TP1 比例": val.get("qty1", 0),
+                "TP2 比例": val.get("qty2", 0),
+                "RR1": val.get("rr1", 0),
+                "RR2": val.get("rr2", 0)
+            }
+            for name, val in config_data.items()
+        ])
+        st.dataframe(config_df)
+    else:
+        st.info("尚未建立 strategy_config.json 或資料為空")
+except Exception as e:
+    st.warning(f"無法載入策略設定：{e}")
+
+# ➕ 新增：Binance 倉位追蹤（即時）
+try:
+    from binance_position_tracker import BinancePositionTracker
+    tracker = BinancePositionTracker()
+    st.subheader("📡 Binance 即時倉位追蹤")
+
+    summary = tracker.get_position_summary()
+    if "error" in summary:
+        st.error("無法連線取得 Binance 倉位資訊")
+    else:
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("多單總值", f"${summary['total_long']:.2f}")
+        col2.metric("空單總值", f"${summary['total_short']:.2f}")
+        col3.metric("浮動損益", f"${summary['unrealized_pnl']:.2f}")
+        col4.metric("淨倉位", f"${summary['net_position']:.2f}")
+        st.caption(f"更新時間：{pd.to_datetime(summary['timestamp'], unit='ms')}")
+except Exception as e:
+    st.warning(f"無法取得即時倉位資訊：{e}")
+
