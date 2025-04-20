@@ -137,3 +137,21 @@ Dashboard.py 除了原有的績效報表分析（Plotly 視覺化）外，v1.4 �
 7. ✅ 模組健康檢查：確認所有檔案是否存在（log/performance.csv, config.py, monitor.py...）
 8. 🧪 測試工具區塊：模擬 webhook 傳送 / 滑價計算 / .env 更新按鈕（預留）
 
+📊 Dashboard.py 功能總整理（整合 Streamlit 視覺化）
+
+Dashboard.py 整合所有即時與績效視覺模組，具備下列功能：
+
+1. 📈 策略資金配置視覺化（圓餅圖 + 槓桿長條圖）
+2. 🧾 最新交易紀錄（TP / SL / PnL% / duration_sec）
+3. 🚨 滑價異常偵測（超過閾值即顯示明細）
+4. 📊 策略績效總表（平均 PnL%、年化報酬、勝率等）
+5. 📉 風險指標計算（Sharpe, Sortino, RR）
+6. 📦 總倉控視覺化（實際使用倉位 vs 設定上限）
+7. 📡 Binance 即時倉位追蹤（long/short 倉金、未實現損益）
+8. 📋 strategy_config.json 可視化（啟用狀態、RR、TP 比例等）
+9. ⚙️ config.py 與 .env 環境參數讀取與展示
+10. 🛠️ util.py 測試工具（模擬滑價）
+11. 📊 analyze_performance.csv 額外績效報表呈現
+12. 🩺 /monitor API 健康狀態顯示
+13. 🧪 模組狀態健檢（確認所有模組檔案是否存在）
+
